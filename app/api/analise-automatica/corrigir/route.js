@@ -1,5 +1,5 @@
 import { sql } from "@/lib/db";
-import { analisarItem, montarIndiceBases, montarResumo, extrairBruto } from "@/lib/analise";
+import { analisarItem, montarIndiceBases, montarResumo, extrairBruto, parseFlt } from "@/lib/analise";
 import { carregarBasesAtivas, carregarComposicoesEHistorico } from "@/lib/basesServer";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -80,8 +80,8 @@ export async function POST(request) {
         descricao: String(i.descricao || "").trim(),
         banco: String(i.banco || "Próprio").trim(),
         unidade: String(i.unidade || "").trim(),
-        coeficiente: Number(i.coeficiente) || 0,
-        preco: Number(i.preco) || 0,
+        coeficiente: parseFlt(i.coeficiente),
+        preco: parseFlt(i.preco),
       }));
       const precoCalc = insumos.reduce((s, i) => s + i.coeficiente * i.preco, 0);
       bruto.descricao = descricao;
