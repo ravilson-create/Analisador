@@ -1,6 +1,6 @@
 import { sql } from "@/lib/db";
 import { analisarItem, montarIndiceBases, montarResumo, extrairBruto, parseFlt } from "@/lib/analise";
-import { carregarBasesAtivas, carregarComposicoesEHistorico } from "@/lib/basesServer";
+import { carregarBasesAtivas, carregarComposicoesEHistorico, salvarComposicaoMemoria } from "@/lib/basesServer";
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  CORREÇÃO DE ITEM — equivalente ao que o app original fazia em memória
@@ -95,6 +95,18 @@ export async function POST(request) {
         data: hoje(),
         fiscal: payload?.fiscal || "fiscal",
       };
+      // Grava a composição validada na memória compartilhada (mesmo campo
+      // `dados_compartilhados.composicoes`) para servir de referência em
+      // análises futuras de outros orçamentos com o mesmo serviço.
+      await salvarComposicaoMemoria({
+        codigo: bruto.codigo,
+        descricao,
+        unidade: bruto.unidade,
+        preco: precoCalc,
+        insumos,
+        analiseId,
+        fiscal: payload?.fiscal || "fiscal",
+      });
     } else if (acao === "aceite") {
       if (payload && payload.justificativa) {
         aceite = {
