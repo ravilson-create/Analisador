@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/pdf-tabela.py": {
+      "runtime": "python3.12",
+      "maxDuration": 30
+    }
+  }
+}

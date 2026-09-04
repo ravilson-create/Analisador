@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Pré-visualização — Análise Automática SINAPI</title>
+<style>
+  body{margin:0;font-family:'Inter','Segoe UI',sans-serif;background:#F4F6FA;color:#1A202C;}
+  .faixa-preview{background:#1B3A8C;color:#fff;text-align:center;font-size:12.5px;padding:7px;font-weight:600;}
+  main{max-width:960px;margin:0 auto;padding:28px 20px;}
+  h1{font-size:22px;font-weight:800;color:#1B3A8C;margin-bottom:2px;}
+  .sub{font-size:13px;color:#555;margin-bottom:20px;}
+  section{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:20px;margin-bottom:20px;}
+  h2{font-size:16px;font-weight:800;color:#1B3A8C;margin:0 0 2px;}
+  .sub2{font-size:12px;color:#666;margin:0 0 14px;}
+  .linha{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  input,textarea{border:1px solid #E2E8F0;border-radius:6px;padding:8px 10px;font-size:13px;box-sizing:border-box;font-family:inherit;}
+  .campo-nome{max-width:220px;flex:1;}
+  .campo-comp{max-width:180px;flex:1;}
+  .rotulo-arquivo{border:1px solid #E2E8F0;border-radius:6px;padding:8px 10px;font-size:13px;max-width:220px;flex:1;background:#F4F6FA;cursor:pointer;text-align:center;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;color:#666;font-weight:600;padding-bottom:6px;}
+  td{padding:7px 8px 7px 0;border-top:1px solid #E2E8F0;vertical-align:top;}
+  .pill-ativa{color:#0D7A3E;font-weight:700;}
+  .pill-inativa{color:#999;font-weight:700;}
+  .link-excluir{color:#991B1B;}
+  .caixa-resultado{background:#EFF6FF;border-radius:8px;padding:12px;font-size:13px;margin-bottom:14px;}
+  .caixa-resultado p{margin:0 0 6px;}
+  .caixa-resultado p:last-child{margin:0;}
+  .aviso{color:#92500A;}
+  .excedente{color:#991B1B;font-weight:700;}
+  .tabela-scroll{overflow-x:auto;}
+  .tabela-itens{min-width:820px;}
+  .selo{font-weight:700;font-size:11px;padding:2px 8px;border-radius:99px;white-space:nowrap;}
+  .selo-atencao{background:#FEF3C7;color:#92500A;}
+  .selo-nao-conforme{background:#FEE2E2;color:#991B1B;}
+  .selo-conforme{background:#DCFCE7;color:#0D7A3E;}
+  .selo-correcao_fiscal{background:#DCFCE7;color:#0D7A3E;}
+  .selo-aceito_ressalva{background:#FEF9C3;color:#854D0E;}
+  .alerta-item{color:#555;margin-bottom:2px;}
+  .linha-item{cursor:pointer;}
+  .linha-item:hover{background:#FAFBFF;}
+  .seta{color:#bbb;font-size:10px;margin-right:4px;display:inline-block;width:10px;}
+  .linha-detalhe td{border-top:none;padding:0 0 12px;}
+  .composicao{background:#F4F6FA;border:1px solid #E2E8F0;border-radius:6px;padding:10px 12px;font-size:11px;}
+  .composicao-titulo{font-weight:700;color:#555;margin-bottom:6px;}
+  .composicao-linha{display:flex;gap:14px;flex-wrap:wrap;color:#555;}
+  .composicao-bloco{margin-top:8px;padding-top:8px;border-top:1px solid #E2E8F0;}
+  .tabela-insumos{font-size:10.5px;min-width:480px;}
+  .tabela-insumos th{color:#888;text-transform:uppercase;padding:0 8px 4px 0;}
+  .tabela-insumos td{padding:3px 8px 3px 0;border-top:1px solid #fff;}
+  .dica-clique{font-size:11px;color:#888;margin-top:8px;}
+  .acoes-fiscal{margin-top:8px;padding-top:8px;border-top:1px solid #E2E8F0;}
+  .aceite-box{background:#FEF9C3;border:1px solid rgba(202,138,4,0.27);border-radius:6px;padding:8px 10px;margin-bottom:8px;}
+  .aceite-titulo{font-weight:700;color:#854D0E;margin-bottom:3px;}
+  .aceite-texto{color:#78350F;}
+  .aceite-meta{color:#92400E;margin-top:3px;font-size:10px;}
+  .btn-desfazer{margin-top:6px;background:none;border:1px solid rgba(146,64,14,0.27);color:#92400E;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;}
+  .btn-acao{background:#fff;border:1px solid #E2E8F0;color:#333;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;}
+  .btn-acao.aceitar{color:#854D0E;border-color:rgba(202,138,4,0.27);}
+  .btn-salvar{background:#1B3A8C;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;}
+  .btn-salvar:disabled{opacity:0.5;cursor:not-allowed;}
+  .form-box{background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:11.5px;}
+  .form-linha{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px;}
+  .input-peq{border:1px solid #E2E8F0;border-radius:5px;padding:5px 8px;font-size:11.5px;box-sizing:border-box;}
+  .link-restaurar{background:none;border:none;color:#999;font-size:10.5px;cursor:pointer;text-decoration:underline;}
+  .insumo-row{display:flex;gap:4px;margin-bottom:4px;align-items:center;flex-wrap:wrap;}
+  .insumo-row button{border:none;background:none;color:#991B1B;cursor:pointer;font-size:14px;}
+  .busca-titulo{font-weight:700;color:#555;margin-bottom:4px;}
+  .busca-resultados{border:1px solid #E2E8F0;border-radius:6px;max-height:220px;overflow-y:auto;margin-bottom:6px;}
+  .busca-item{padding:6px 8px;cursor:pointer;}
+  .busca-item:not(:first-child){border-top:1px solid #E2E8F0;}
+  .busca-item .linha-topo{display:flex;justify-content:space-between;gap:8px;}
+  .busca-item .cod{font-family:monospace;color:#555;}
+  .busca-item .desc{color:#333;}
+  .busca-item .meta{color:#888;font-size:10px;}
+  .busca-aviso{color:#888;}
+  .btn-imprimir{background:#1B3A8C;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;}
+  footer{text-align:center;font-size:11.5px;color:#888;padding:10px 0 30px;}
+</style>
+</head>
+<body>
+<div class="faixa-preview">🔍 PRÉ-VISUALIZAÇÃO INTERATIVA — dados de exemplo, nada é gravado num banco de verdade aqui. O app de verdade fica no endereço do projeto depois do deploy na Vercel.</div>
+<main>
+  <h1>🤖 Análise Automática SINAPI — MPMA</h1>
+  <p class="sub">Confere orçamentos em PDF do Tá na Mão contra as bases SINAPI/ORSE. Importe as bases e envie um PDF para analisar.</p>
+
+  <section>
+    <h2>📚 Bases de referência</h2>
+    <p class="sub2">Importe o SINAPI/ORSE (.xlsx) usado na comparação.</p>
+    <div class="linha">
+      <input class="campo-nome" placeholder="Nome (ex: SINAPI)" disabled />
+      <input class="campo-comp" placeholder="Competência (ex: 04/2026)" disabled />
+      <div class="rotulo-arquivo">Selecionar .xlsx</div>
+    </div>
+    <table>
+      <thead><tr><th>Nome</th><th>Competência</th><th>Itens</th><th>Ativa</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>SINAPI</td><td>04/2026</td><td>11.439</td><td><span class="pill-ativa">● Ativa</span></td><td><span class="link-excluir">Excluir</span></td></tr>
+        <tr><td>ORSE</td><td>—</td><td>1.842</td><td><span class="pill-ativa">● Ativa</span></td><td><span class="link-excluir">Excluir</span></td></tr>
+        <tr><td>SINAPI</td><td>11/2023</td><td>6.023</td><td><span class="pill-inativa">○ Inativa</span></td><td><span class="link-excluir">Excluir</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>📄 Análise de Orçamento (PDF)</h2>
+    <p class="sub2">Envie o PDF do orçamento para comparar com as bases.</p>
+    <div class="linha">
+      <input class="campo-nome" placeholder="OS (opcional)" disabled />
+      <div class="rotulo-arquivo">Selecionar PDF</div>
+    </div>
+
+    <div class="caixa-resultado" id="caixa-resumo"></div>
+    <div style="margin:-6px 0 14px"><button class="btn-imprimir" onclick="abrirImpressao()">🖨 Imprimir parecer</button></div>
+
+    <div class="tabela-scroll">
+      <table class="tabela-itens">
+        <thead>
+          <tr>
+            <th>Item</th><th>Código</th><th>Descrição</th><th>Qtd.</th>
+            <th>Preço enviado</th><th>Referência</th><th>Status</th><th>Alertas</th>
+          </tr>
+        </thead>
+        <tbody id="corpo-itens"></tbody>
+      </table>
+    </div>
+    <p class="dica-clique">Clique num item para ver a composição do preço e testar as ações do fiscal: corrigir quantidade, corrigir código, criar composição própria ou aceitar com justificativa.</p>
+  </section>
+
+  <section>
+    <h2>📋 Análises recentes</h2>
+    <table>
+      <thead><tr><th>#</th><th>OS</th><th>Arquivo</th><th>Resumo</th><th>Quando</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>4</td><td>OS 421</td><td>af8e460b.excel.201347.2026.pdf</td><td>0/5 conf. · R$ 16.523,94</td><td>03/09/2026 10:05</td><td><span class="link-excluir" style="color:#1B3A8C;cursor:pointer" onclick="abrirImpressao()">🖨 Imprimir</span></td></tr>
+        <tr><td>3</td><td>OS 415</td><td>c4abc439.excel.054940.2025.pdf</td><td>7/9 conf. · R$ 24.108,50</td><td>02/09/2026 09:47</td><td><span class="link-excluir" style="color:#1B3A8C;cursor:pointer" onclick="abrirImpressao()">🖨 Imprimir</span></td></tr>
+        <tr><td>2</td><td>teste</td><td>teste.pdf</td><td>4/4 conf. · R$ 3.980,00</td><td>01/09/2026 18:03</td><td><span class="link-excluir" style="color:#1B3A8C;cursor:pointer" onclick="abrirImpressao()">🖨 Imprimir</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>Pré-visualização estática gerada a partir de app/page.js — os itens de exemplo vêm de um teste real do pipeline (PDF → extração → comparação SINAPI). As ações do fiscal (corrigir quantidade/código, criar composição própria, aceitar com justificativa) aqui recalculam tudo no navegador, com a mesma fórmula do app; no app de verdade, cada ação grava a correção no banco.</footer>
+</main>
+
+<script>
+  // ── Base de referência de demonstração (equivalente ao SINAPI ativo) ──
+  const BASE_DEMO = {
+    "13751": { descricao: "Portão de correr em tubo de aço galvanizado", unidade: "m²", preco: 980.00 },
+    "100721": { descricao: "PINTURA COM TINTA ALQUÍDICA DE FUNDO", unidade: "m²", preco: 22.81 },
+    "100761": { descricao: "PINTURA COM TINTA ALQUÍDICA DE ACABAMENTO", unidade: "m²", preco: 44.61 },
+    "112564": { descricao: "KIT PARA AUTOMACAO DE PORTAO DESLIZANTE (CORRER)", unidade: "UN", preco: 1074.86 },
+    "88316": { descricao: "REMOÇÃO DE PORTA METÁLICA", unidade: "m²", preco: 15.40 },
+  };
+
+  // ── Itens "crus" (o que o PDF trouxe) — mesmos campos que parseMedicao/analisarItem usam ──
+  let ITENS = [
+    { item: "2.1", codigo: "112564", banco: "SINAPI modificada", descricao: "KIT PARA AUTOMACAO DE PORTAO DESLIZANTE (CORRER)", unidade: "UN", quantidade: 1, preco: 1074.86, bdi: 0.28, reajuste: 1.06, desagio: 0.05, proprio: false, insumos: [], _aceite: null },
+    { item: "2.2", codigo: "13751", banco: "SINAPI modificada", descricao: "Portão de correr em tubo de aço galvanizado quadro em tubo de 2\", tubos verticais de 1 1/2\" com esp. = 20cm, e tubos verticais de 1\" com esp. = 10cm. inclusive trancas/ferrolho", unidade: "m²", quantidade: 9.52, preco: 1149.07, bdi: 0.28, reajuste: 1.06, desagio: 0.05, proprio: false,
+      insumos: [
+        { codigo: "I0001", descricao: "TUBO DE AÇO GALVANIZADO 2\"", banco: "SINAPI", unidade: "m", coeficiente: 4.0, preco: 45.00 },
+        { codigo: "I0002", descricao: "TUBO DE AÇO GALVANIZADO 1 1/2\"", banco: "SINAPI", unidade: "m", coeficiente: 3.5, preco: 32.50 },
+        { codigo: "M0003", descricao: "SERVENTE COM ENCARGOS COMPLEMENTARES", banco: "SINAPI", unidade: "h", coeficiente: 8.0, preco: 18.90 },
+      ], _aceite: null },
+    { item: "2.3", codigo: "100721", banco: "SINAPI", descricao: "PINTURA COM TINTA ALQUÍDICA DE FUNDO (TIPO ZARCÃO) PULVERIZADA SOBRE SUPERFÍCIES METÁLICAS (EXCETO PERFIL) EXECUTADO EM OBRA (POR DEMÃO). AF_01/2020_PE", unidade: "m²", quantidade: 9.52, preco: 22.81, bdi: 0.28, reajuste: 1.06, desagio: 0.05, proprio: false, insumos: [], _aceite: null },
+    { item: "2.4", codigo: "100761", banco: "SINAPI", descricao: "PINTURA COM TINTA ALQUÍDICA DE ACABAMENTO (ESMALTE SINTÉTICO FOSCO) PULVERIZADA SOBRE SUPERFÍCIES METÁLICAS (EXCETO PERFIL) EXECUTADO EM OBRA (02 DEMÃOS). AF_01/2020_PE", unidade: "m²", quantidade: 9.52, preco: 44.61, bdi: 0.28, reajuste: 1.06, desagio: 0.05, proprio: false, insumos: [], _aceite: null },
+    { item: "2.5", codigo: "02.01.47", banco: "SINAPI modificada", descricao: "REMOÇÂO DE PORTA/PORTAO METALICO", unidade: "m²", quantidade: 9.52, preco: 17.20, bdi: 0.28, reajuste: 1.06, desagio: 0.05, proprio: false, insumos: [], _aceite: null },
+  ];
+
+  const brl = (n) => Number(n || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const normSA = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+  // ── Busca assistida de código (demo de GET /api/bases/buscar) — pontua
+  // por: código exato → código começa com → descrição começa com →
+  // código contém → descrição contém, igual à rota de verdade. ──
+  window.buscarCodigoAssistido = (idx) => {
+    const termo = normSA(document.getElementById(`busca-${idx}`).value);
+    const alvo = document.getElementById(`busca-resultados-${idx}`);
+    if (termo.length < 3) { alvo.innerHTML = ""; return; }
+    const pontuar = (codigo, item) => {
+      const cod = normSA(codigo), desc = normSA(item.descricao);
+      if (cod === termo) return 0;
+      if (cod.startsWith(termo)) return 1;
+      if (desc.startsWith(termo)) return 2;
+      if (cod.includes(termo)) return 3;
+      if (desc.includes(termo)) return 4;
+      return null;
+    };
+    const encontrados = Object.entries(BASE_DEMO)
+      .map(([codigo, item]) => ({ p: pontuar(codigo, item), codigo, item }))
+      .filter((r) => r.p !== null)
+      .sort((a, b) => a.p - b.p);
+    if (!encontrados.length) { alvo.innerHTML = '<div class="busca-aviso">Nenhum resultado nas bases ativas.</div>'; return; }
+    alvo.innerHTML = `<div class="busca-resultados">${encontrados.map(({ codigo, item }) => `
+      <div class="busca-item" onclick="escolherCodigoAssistido(${idx},'${codigo}')">
+        <div class="linha-topo"><span class="cod">${codigo}</span><span><b>R$ ${brl(item.preco)}</b></span></div>
+        <div class="desc">${item.descricao}</div>
+        <div class="meta">${item.unidade} · SINAPI (demo)</div>
+      </div>`).join("")}</div>`;
+  };
+  window.escolherCodigoAssistido = (idx, codigo) => {
+    document.getElementById(`cod-${idx}`).value = codigo;
+    document.getElementById(`busca-resultados-${idx}`).innerHTML = "";
+    document.getElementById(`busca-${idx}`).value = "";
+  };
+  const SELO = {
+    conforme: ["Conforme", "selo-conforme"],
+    "atenção": ["Atenção", "selo-atencao"],
+    nao_conforme: ["Não conforme", "selo-nao-conforme"],
+    correcao_fiscal: ["Corrigido", "selo-correcao_fiscal"],
+    aceito_ressalva: ["Aceito c/ ressalva", "selo-aceito_ressalva"],
+  };
+
+  // Mesma fórmula de app/page.js e lib/analise.js (versão resumida para a
+  // demonstração): reajuste → deságio → BDI, referência por código exato,
+  // alertas de preço/quantidade/próprio.
+  function analisar(it) {
+    const alertas = [];
+    let status = "conforme";
+    const fatorReaj = it.reajuste || 1, fatorDes = 1 - (it.desagio || 0), fatorBdi = 1 + (it.bdi || 0.2247);
+    const precoComAjuste = it.preco * fatorReaj * fatorDes;
+    const precoComBdi = precoComAjuste * fatorBdi;
+    const totalItem = precoComBdi * (it.quantidade || 0);
+
+    let excedenteQuantidade = 0;
+    if (it.quantidadeFiscal != null) {
+      const diff = (it.quantidade || 0) - it.quantidadeFiscal;
+      if (Math.abs(diff) > 0.001) {
+        if (diff > 0) {
+          excedenteQuantidade = diff * precoComBdi;
+          alertas.push(`QUANTIDADE DIVERGENTE: empresa informou ${it.quantidade} ${it.unidade}, fiscal levantou em campo ${it.quantidadeFiscal} ${it.unidade} — excedente de ${diff.toFixed(2)} ${it.unidade} (R$ ${brl(excedenteQuantidade)} a glosar).`);
+          status = "nao_conforme";
+        } else {
+          alertas.push(`Quantidade levantada em campo (${it.quantidadeFiscal} ${it.unidade}) é maior que a informada pela empresa (${it.quantidade} ${it.unidade}) — conferir se não há erro de lançamento.`);
+          status = "atenção";
+        }
+      }
+    }
+
+    if (it.proprio) {
+      alertas.push(`Item declarado como "Próprio" — sem código de tabela pública. Exige composição analítica com insumos justificados${it.insumos.length ? ` (${it.insumos.length} insumos no analítico).` : "."}`);
+      return { ...it, ref: null, alertas, status: status === "nao_conforme" ? status : "atenção", precoComAjuste, precoComBdi, totalItem, excedenteItem: excedenteQuantidade, excedenteQuantidade };
+    }
+
+    const ref = BASE_DEMO[it.codigo] || null;
+    let excedenteItem = excedenteQuantidade;
+    if (!ref) {
+      alertas.push(`Código "${it.codigo || "—"}" não localizado no SINAPI. Item deve ser justificado ou composição própria criada.`);
+      if (status === "conforme") status = "atenção";
+    } else {
+      const diff = it.preco - ref.preco;
+      if (Math.abs(diff) > 0.01) {
+        const pct = (diff / ref.preco) * 100;
+        const excedenteUnit = diff * fatorReaj * fatorDes * fatorBdi;
+        const excedenteTotal = excedenteUnit * (it.quantidade || 0);
+        alertas.push(`PREÇO BASE DIVERGENTE: enviado R$ ${brl(it.preco)} vs. SINAPI R$ ${brl(ref.preco)} (${pct > 0 ? "+" : ""}${pct.toFixed(2)}%). Preço é fixo pela data-base do contrato.${pct > 0 ? ` Excedente com fatores contratuais: R$ ${brl(excedenteTotal)}.` : ""}`);
+        status = pct > 0 ? "nao_conforme" : "atenção";
+        if (pct > 0) excedenteItem += excedenteTotal;
+      }
+    }
+    return { ...it, ref, alertas, status, precoComAjuste, precoComBdi, totalItem, excedenteItem, excedenteQuantidade };
+  }
+
+  function statusEfetivo(it) {
+    if (!it._aceite) return it.status;
+    return it._aceite.tipo === "correcao_fiscal" ? "correcao_fiscal" : "aceito_ressalva";
+  }
+
+  let abertos = {};      // { [idx]: true }
+  let formAberto = {};   // { [idx]: "quantidade"|"codigo"|"composicao"|"aceite"|null }
+
+  function montarResumo(analisados) {
+    const ef = (i) => statusEfetivo(i);
+    const conf = analisados.filter(i => ef(i) === "conforme").length;
+    const aten = analisados.filter(i => ef(i) === "atenção").length;
+    const naoC = analisados.filter(i => ef(i) === "nao_conforme").length;
+    const resolvidos = analisados.filter(i => ["aceito_ressalva", "correcao_fiscal"].includes(ef(i))).length;
+    const valorTotalMedido = analisados.reduce((s, i) => s + (i.totalItem || 0), 0);
+    const valorExcedente = analisados.reduce((s, i) => s + (i._aceite ? 0 : (i.excedenteItem || 0)), 0);
+    return { conf, aten, naoC, resolvidos, valorTotalMedido, valorExcedente, total: analisados.length };
+  }
+
+  function linhaDetalheHtml(it, idx) {
+    const efetivo = statusEfetivo(it);
+    const resolvido = efetivo === "aceito_ressalva" || efetivo === "correcao_fiscal";
+    const temDivergenciaPreco = it.alertas.some((a) => a.includes("PREÇO BASE DIVERGENTE"));
+    const fa = formAberto[idx];
+
+    let html = '<div class="composicao">';
+    html += '<div class="composicao-titulo">Composição do preço cobrado</div>';
+    html += '<div class="composicao-linha">';
+    html += `<span>Base <b>R$ ${brl(it.preco)}</b></span>`;
+    if (it.reajuste !== 1) html += `<span>× Reaj. ${((it.reajuste - 1) * 100).toFixed(2)}%</span>`;
+    if (it.desagio !== 0) html += `<span>− Deságio ${(it.desagio * 100).toFixed(0)}%</span>`;
+    html += `<span>= <b>R$ ${brl(it.precoComAjuste)}</b></span>`;
+    html += `<span>+ BDI = <b style="color:#1B3A8C">R$ ${brl(it.precoComBdi)}</b></span>`;
+    html += `<span style="color:#888">Total: <b>R$ ${brl(it.totalItem)}</b></span>`;
+    html += '</div>';
+    if (it.ref) {
+      html += `<div class="composicao-bloco"><b>Ref.:</b> ${it.ref.descricao} — ${it.ref.unidade} — <b>R$ ${brl(it.ref.preco)}</b>`;
+      if (it.excedenteItem > 0.01) html += ` <span style="color:#991B1B;font-weight:700;margin-left:8px">Excedente a glosar: R$ ${brl(it.excedenteItem)}</span>`;
+      html += '</div>';
+    }
+    if (it.insumos && it.insumos.length > 0) {
+      html += `<div class="composicao-bloco"><div class="composicao-titulo">Composição analítica (${it.insumos.length} insumos)</div>`;
+      html += '<table class="tabela-insumos"><thead><tr><th>Código</th><th>Descrição</th><th>Und</th><th>Coef.</th><th style="text-align:right">Preço</th></tr></thead><tbody>';
+      for (const ins of it.insumos) {
+        html += `<tr><td style="font-family:monospace;color:#888">${ins.codigo}</td><td>${ins.descricao}</td><td>${ins.unidade}</td><td>${ins.coeficiente}</td><td style="text-align:right;font-family:monospace">R$ ${brl(ins.preco)}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    } else {
+      html += '<div class="composicao-bloco" style="color:#888">Sem composição analítica detalhada disponível para este item.</div>';
+    }
+
+    // ── Ações do fiscal ──
+    html += '<div class="acoes-fiscal" onclick="event.stopPropagation()">';
+    if (it._aceite) {
+      html += `<div class="aceite-box">
+        <div class="aceite-titulo">${it._aceite.tipo === "correcao_fiscal" ? "✓ Corrigido pelo fiscal" : "✔ Aceito com ressalva"}</div>
+        <div class="aceite-texto">${it._aceite.justificativa}</div>
+        <div class="aceite-meta">fiscal em ${it._aceite.data}</div>
+        <button class="btn-desfazer" onclick="desfazerAceite(${idx})">✕ Desfazer</button>
+      </div>`;
+    }
+    if (!resolvido) {
+      html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+      html += `<button class="btn-acao" onclick="abrirForm(${idx},'quantidade')">✏ Corrigir quantidade</button>`;
+      html += `<button class="btn-acao" onclick="abrirForm(${idx},'codigo')">🔍 Corrigir código</button>`;
+      html += `<button class="btn-acao" onclick="abrirForm(${idx},'composicao')">🔧 Criar composição própria</button>`;
+      if (temDivergenciaPreco) html += `<button class="btn-acao aceitar" onclick="abrirForm(${idx},'aceite')">✔ Aceitar com justificativa</button>`;
+      html += '</div>';
+    }
+
+    if (fa === "quantidade") {
+      html += `<div class="form-box">
+        <div>Quantidade informada pela empresa: <b>${it.quantidade} ${it.unidade}</b></div>
+        <div class="form-linha">
+          <input class="input-peq" style="max-width:160px" id="qtd-${idx}" value="${it.quantidadeFiscal ?? ""}" placeholder="Quantidade levantada em campo" />
+          <button class="btn-salvar" onclick="salvarQuantidade(${idx})">Salvar</button>
+          ${it.quantidadeFiscal != null ? `<button class="link-restaurar" onclick="restaurarQuantidade(${idx})">restaurar valor da empresa</button>` : ""}
+        </div>
+      </div>`;
+    }
+    if (fa === "codigo") {
+      html += `<div class="form-box">
+        <div>Código atual: <b>${it.codigo || "—"}</b>${!it.ref ? " (não localizado na base ativa)" : ""}</div>
+        <div class="busca-titulo" style="margin-top:8px">Busca assistida</div>
+        <input class="input-peq" style="width:100%;margin-bottom:6px;box-sizing:border-box" id="busca-${idx}" placeholder="Digite parte da descrição ou do código (mín. 3 letras)" oninput="buscarCodigoAssistido(${idx})" />
+        <div id="busca-resultados-${idx}"></div>
+        <div class="busca-titulo" style="margin-top:10px">Ou digite o código direto</div>
+        <div class="form-linha">
+          <input class="input-peq" style="max-width:200px" id="cod-${idx}" placeholder="Novo código (ex: 88316)" />
+          <button class="btn-salvar" onclick="salvarCodigo(${idx})">Aplicar</button>
+        </div>
+      </div>`;
+    }
+    if (fa === "composicao") {
+      const insumosIniciais = it.insumos.length ? it.insumos : [{ codigo: "", descricao: "", unidade: "", coeficiente: "", preco: "" }];
+      window["_comp_" + idx] = insumosIniciais.map((i) => ({ ...i }));
+      html += `<div class="form-box" id="form-comp-${idx}">${formComposicaoHtml(idx, it)}</div>`;
+    }
+    if (fa === "aceite") {
+      html += `<div class="form-box">
+        <textarea id="just-${idx}" style="width:100%;min-height:60px" placeholder="Justificativa para aceitar o preço divergente"></textarea>
+        <div style="margin-top:6px"><button class="btn-salvar" onclick="salvarAceite(${idx})">Confirmar aceite</button></div>
+      </div>`;
+    }
+    html += '</div>'; // .acoes-fiscal
+    html += '</div>'; // .composicao
+    return html;
+  }
+
+  function formComposicaoHtml(idx, it) {
+    const insumos = window["_comp_" + idx];
+    const total = insumos.reduce((s, i) => s + (Number(i.coeficiente) || 0) * (Number(i.preco) || 0), 0);
+    let html = '<div class="composicao-titulo">Composição própria — insumos</div>';
+    html += `<div class="form-linha">
+      <input class="input-peq" style="flex:2;min-width:200px" id="comp-desc-${idx}" value="${it.descricao.replace(/"/g, "&quot;")}" placeholder="Descrição da composição própria" />
+      <input class="input-peq" style="max-width:90px" id="comp-und-${idx}" value="${it.unidade}" placeholder="Unidade" />
+    </div>`;
+    insumos.forEach((row, i) => {
+      html += `<div class="insumo-row">
+        <input class="input-peq" style="width:80px" value="${row.codigo}" onchange="atualizarInsumo(${idx},${i},'codigo',this.value)" placeholder="Código" />
+        <input class="input-peq" style="flex:1;min-width:140px" value="${row.descricao}" onchange="atualizarInsumo(${idx},${i},'descricao',this.value)" placeholder="Descrição do insumo" />
+        <input class="input-peq" style="width:55px" value="${row.unidade}" onchange="atualizarInsumo(${idx},${i},'unidade',this.value)" placeholder="Und" />
+        <input class="input-peq" style="width:60px" value="${row.coeficiente}" onchange="atualizarInsumo(${idx},${i},'coeficiente',this.value)" placeholder="Coef." />
+        <input class="input-peq" style="width:80px" value="${row.preco}" onchange="atualizarInsumo(${idx},${i},'preco',this.value)" placeholder="Preço" />
+        <button onclick="removerInsumo(${idx},${i})" title="Remover">✕</button>
+      </div>`;
+    });
+    html += `<button class="btn-acao" onclick="adicionarInsumo(${idx})">+ Adicionar insumo</button>`;
+    html += `<div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span style="color:#555">Custo direto calculado: <b id="comp-total-${idx}">R$ ${brl(total)}</b></span>
+      <button class="btn-salvar" onclick="salvarComposicao(${idx})">Salvar composição</button>
+    </div>`;
+    return html;
+  }
+
+  // Recalcula só o total exibido, sem recriar os campos — recriar a cada
+  // "onchange" desconectaria os outros inputs do formulário do DOM (o
+  // navegador perde o campo que o usuário ia preencher em seguida).
+  function atualizarTotalComposicao(idx) {
+    const insumos = window["_comp_" + idx];
+    const total = insumos.reduce((s, i) => s + (Number(i.coeficiente) || 0) * (Number(i.preco) || 0), 0);
+    const span = document.getElementById("comp-total-" + idx);
+    if (span) span.textContent = "R$ " + brl(total);
+  }
+  function reRenderForm(idx) {
+    const el = document.getElementById("form-comp-" + idx);
+    if (el) el.innerHTML = formComposicaoHtml(idx, ITENS[idx]);
+  }
+  window.atualizarInsumo = (idx, i, campo, valor) => { window["_comp_" + idx][i][campo] = valor; atualizarTotalComposicao(idx); };
+  window.adicionarInsumo = (idx) => { window["_comp_" + idx].push({ codigo: "", descricao: "", unidade: "", coeficiente: "", preco: "" }); reRenderForm(idx); };
+  window.removerInsumo = (idx, i) => { window["_comp_" + idx].splice(i, 1); reRenderForm(idx); };
+
+  window.abrirForm = (idx, nome) => { formAberto[idx] = formAberto[idx] === nome ? null : nome; montarTabela(); };
+  window.desfazerAceite = (idx) => { ITENS[idx] = { ...ITENS[idx], _aceite: null }; ITENS[idx] = analisar(ITENS[idx]); ITENS[idx]._aceite = null; montarTabela(); };
+
+  window.salvarQuantidade = (idx) => {
+    const v = document.getElementById("qtd-" + idx).value;
+    const it = { ...ITENS[idx] };
+    if (v === "") delete it.quantidadeFiscal; else it.quantidadeFiscal = Number(v.replace(",", "."));
+    ITENS[idx] = analisar(it);
+    ITENS[idx]._aceite = it._aceite || null;
+    formAberto[idx] = null;
+    montarTabela();
+  };
+  window.restaurarQuantidade = (idx) => {
+    const it = { ...ITENS[idx] }; delete it.quantidadeFiscal;
+    ITENS[idx] = analisar(it); ITENS[idx]._aceite = it._aceite || null;
+    montarTabela();
+  };
+  window.salvarCodigo = (idx) => {
+    const codigo = document.getElementById("cod-" + idx).value.trim();
+    if (!codigo) return;
+    const it = { ...ITENS[idx], codigo, proprio: false };
+    const recomputado = analisar(it);
+    recomputado._aceite = { tipo: "correcao_fiscal", justificativa: `Código corrigido pelo fiscal para "${codigo}".`, data: new Date().toLocaleDateString("pt-BR") };
+    ITENS[idx] = recomputado;
+    formAberto[idx] = null;
+    montarTabela();
+  };
+  window.salvarComposicao = (idx) => {
+    const insumos = window["_comp_" + idx].map((i) => ({ codigo: i.codigo, descricao: i.descricao, banco: i.banco || "Próprio", unidade: i.unidade, coeficiente: Number(i.coeficiente) || 0, preco: Number(i.preco) || 0 }));
+    const descricao = document.getElementById("comp-desc-" + idx).value.trim();
+    const unidade = document.getElementById("comp-und-" + idx).value.trim();
+    if (!descricao || !insumos.some((i) => i.descricao && i.coeficiente > 0)) return;
+    const precoCalc = insumos.reduce((s, i) => s + i.coeficiente * i.preco, 0);
+    const it = { ...ITENS[idx], descricao, unidade, preco: precoCalc, insumos, proprio: true };
+    const recomputado = analisar(it);
+    recomputado._aceite = { tipo: "correcao_fiscal", justificativa: `Composição própria criada pelo fiscal com ${insumos.length} insumo(s) — custo direto R$ ${brl(precoCalc)}.`, data: new Date().toLocaleDateString("pt-BR") };
+    ITENS[idx] = recomputado;
+    formAberto[idx] = null;
+    montarTabela();
+  };
+  window.salvarAceite = (idx) => {
+    const justificativa = document.getElementById("just-" + idx).value.trim();
+    if (!justificativa) return;
+    const it = { ...ITENS[idx] };
+    it._aceite = { tipo: "aceito_ressalva", justificativa, data: new Date().toLocaleDateString("pt-BR"), precoAceito: it.preco, precoRef: it.ref?.preco ?? null };
+    ITENS[idx] = it;
+    formAberto[idx] = null;
+    montarTabela();
+  };
+
+  window.toggleLinha = (i) => { abertos[i] = !abertos[i]; montarTabela(); };
+
+  function montarTabela() {
+    const analisados = ITENS.map((it) => analisar(it)).map((it, i) => ({ ...it, _aceite: ITENS[i]._aceite }));
+    ITENS = analisados;
+
+    const resumo = montarResumo(analisados);
+    document.getElementById("caixa-resumo").innerHTML = `
+      <p><b>Análise nº 4</b> · BDI 28,0% · Reajuste 1.06 · Deságio 5,0%</p>
+      <p>Conformes: ${resumo.conf}/${resumo.total} · Atenção: ${resumo.aten} · Não conf.: ${resumo.naoC}${resumo.resolvidos > 0 ? ` · Resolvidos pelo fiscal: ${resumo.resolvidos}` : ""}</p>
+      <p>Valor total medido: R$ ${brl(resumo.valorTotalMedido)}${resumo.valorExcedente > 0 ? ` · Excedente a glosar: <span class="excedente">R$ ${brl(resumo.valorExcedente)}</span>` : ""}</p>
+    `;
+
+    const corpo = document.getElementById("corpo-itens");
+    corpo.innerHTML = analisados.map((it, i) => {
+      const efetivo = statusEfetivo(it);
+      const [label, classe] = SELO[efetivo] || SELO["atenção"];
+      const alertasHtml = it.alertas.length ? it.alertas.map((a) => `<div class="alerta-item">${a}</div>`).join("") : "—";
+      const linhaPrincipal = `
+        <tr class="linha-item" onclick="toggleLinha(${i})">
+          <td><span class="seta">${abertos[i] ? "▲" : "▼"}</span>${it.item}</td>
+          <td>${it.codigo || "—"}</td>
+          <td style="max-width:260px">${it.descricao}</td>
+          <td>${it.quantidadeFiscal != null ? it.quantidadeFiscal + " *" : it.quantidade}</td>
+          <td>R$ ${brl(it.preco)}</td>
+          <td>${it.ref ? "R$ " + brl(it.ref.preco) : "—"}</td>
+          <td><span class="selo ${classe}">${label}</span></td>
+          <td>${alertasHtml}</td>
+        </tr>`;
+      const linhaDetalhe = abertos[i] ? `<tr><td colspan="8" style="padding:0 0 12px;border-top:none">${linhaDetalheHtml(it, i)}</td></tr>` : "";
+      return linhaPrincipal + linhaDetalhe;
+    }).join("");
+  }
+
+  // ── Imprimir / Salvar como PDF (demo de /imprimir/<id>) — monta o mesmo
+  // parecer completo (cabeçalho, resumo, tabela item a item com correções)
+  // numa aba nova e chama window.print(); no app de verdade isso é uma
+  // página própria (app/imprimir/[id]/page.js) que busca a análise no banco. ──
+  window.abrirImpressao = () => {
+    const resumo = montarResumo(ITENS);
+    const STATUS_LABEL = { conforme: "Conforme", "atenção": "Atenção", nao_conforme: "Não conforme", aceito_ressalva: "Aceito com ressalva", correcao_fiscal: "Corrigido pelo fiscal" };
+    const linhas = ITENS.map((it, i) => {
+      const efetivo = statusEfetivo(it);
+      const [, classe] = SELO[efetivo] || SELO["atenção"];
+      const obsAlertas = it.alertas.map((a) => `<div class="alerta">${a}</div>`).join("");
+      const obsAceite = it._aceite ? `<div class="obs-correcao">${it._aceite.tipo === "correcao_fiscal" ? "Corrigido: " : "Aceito com ressalva: "}${it._aceite.justificativa} — fiscal em ${it._aceite.data}</div>` : "";
+      return `<tr>
+        <td>${it.item}</td><td>${it.codigo || "—"}</td><td style="max-width:220px">${it.descricao}</td>
+        <td>${it.quantidadeFiscal != null ? it.quantidadeFiscal + " " + it.unidade + " (campo)" : it.quantidade + " " + it.unidade}</td>
+        <td>R$ ${brl(it.preco)}</td><td>${it.ref ? "R$ " + brl(it.ref.preco) : "—"}</td><td>R$ ${brl(it.totalItem)}</td>
+        <td><span class="selo ${classe}">${STATUS_LABEL[efetivo] || efetivo}</span></td>
+        <td style="min-width:160px">${obsAlertas}${obsAceite}</td>
+      </tr>`;
+    }).join("");
+
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" />
+      <title>Parecer — Análise nº 4</title>
+      <style>
+        body{margin:0;font-family:'Inter','Segoe UI',sans-serif;color:#1A202C;font-size:12.5px;}
+        .folha{max-width:900px;margin:0 auto;padding:28px 24px;}
+        .barra-acoes{text-align:center;padding:10px;background:#F4F6FA;border-bottom:1px solid #E2E8F0;}
+        .btn-imprimir{background:#1B3A8C;color:#fff;border:none;border-radius:6px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;}
+        h1{font-size:17px;color:#1B3A8C;margin:0 0 2px;}
+        .subtitulo{font-size:11.5px;color:#666;margin:0 0 18px;}
+        .resumo{display:flex;gap:18px;flex-wrap:wrap;background:#EFF6FF;border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:12px;}
+        .resumo b{font-size:13px;}
+        table{width:100%;border-collapse:collapse;font-size:10.8px;}
+        th{text-align:left;color:#666;font-weight:700;padding:6px;border-bottom:2px solid #1A202C22;text-transform:uppercase;font-size:9px;}
+        td{padding:6px;border-top:1px solid #E2E8F0;vertical-align:top;}
+        .selo{font-weight:700;font-size:9.5px;padding:2px 6px;border-radius:99px;white-space:nowrap;display:inline-block;}
+        .selo-conforme{background:#DCFCE7;color:#0D7A3E;} .selo-atencao{background:#FEF3C7;color:#92500A;}
+        .selo-nao-conforme{background:#FEE2E2;color:#991B1B;} .selo-correcao_fiscal{background:#DCFCE7;color:#0D7A3E;}
+        .selo-aceito_ressalva{background:#FEF9C3;color:#854D0E;}
+        .obs-correcao{margin-top:3px;font-size:10px;color:#854D0E;background:#FEF9C3;border-radius:4px;padding:3px 6px;}
+        .alerta{font-size:10px;color:#991B1B;margin-bottom:2px;}
+        .rodape{margin-top:30px;padding-top:14px;border-top:1px solid #E2E8F0;font-size:10px;color:#888;text-align:center;}
+        .assinatura{margin-top:50px;display:flex;justify-content:space-around;}
+        .linha-assinatura{border-top:1px solid #333;width:260px;text-align:center;padding-top:4px;font-size:11px;color:#555;}
+        @media print{.barra-acoes{display:none;} .folha{padding:0;max-width:none;} @page{margin:14mm;}}
+      </style></head><body>
+      <div class="barra-acoes"><button class="btn-imprimir" onclick="window.print()">🖨 Imprimir / Salvar como PDF</button></div>
+      <div class="folha">
+        <h1>Parecer de Análise Automática de Orçamento</h1>
+        <p class="subtitulo">Análise Automática SINAPI — MPMA · Pré-visualização — dados de exemplo.</p>
+        <div class="resumo">
+          <span>Conformes: <b>${resumo.conf}</b></span><span>Atenção: <b>${resumo.aten}</b></span><span>Não conformes: <b>${resumo.naoC}</b></span>
+          ${resumo.resolvidos > 0 ? `<span>Resolvidos pelo fiscal: <b>${resumo.resolvidos}</b></span>` : ""}
+          <span>Valor total medido: <b>R$ ${brl(resumo.valorTotalMedido)}</b></span>
+          ${resumo.valorExcedente > 0 ? `<span>Excedente a glosar: <b style="color:#991B1B">R$ ${brl(resumo.valorExcedente)}</b></span>` : ""}
+        </div>
+        <table><thead><tr><th>Item</th><th>Código</th><th>Descrição</th><th>Qtd.</th><th>Preço enviado</th><th>Referência</th><th>Total</th><th>Status</th><th>Observações</th></tr></thead>
+        <tbody>${linhas}</tbody></table>
+        <div class="assinatura"><div class="linha-assinatura">Fiscal do contrato</div><div class="linha-assinatura">COEA/PGJ-MA</div></div>
+        <div class="rodape">Pré-visualização estática — no app de verdade esta página é /imprimir/&lt;id&gt; e busca a análise gravada no banco.</div>
+      </div></body></html>`;
+
+    const janela = window.open("", "_blank");
+    if (!janela) { alert("O navegador bloqueou a abertura da aba de impressão — permita pop-ups para este site."); return; }
+    janela.document.write(html);
+    janela.document.close();
+  };
+
+  montarTabela();
+</script>
+</body>
+</html>
