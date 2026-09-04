@@ -455,6 +455,14 @@ export default function Home() {
   }, []);
   useEffect(() => { carregarAnalises(); }, [carregarAnalises]);
 
+  // Exclusão manual, para não deixar a tabela de análises crescer sem
+  // limite — não há limpeza automática por idade/quantidade.
+  const excluirAnalise = async (id) => {
+    if (!window.confirm("Excluir esta análise? Essa ação não pode ser desfeita.")) return;
+    await fetch(`/api/analises?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    carregarAnalises();
+  };
+
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "28px 20px" }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, color: C.azul, marginBottom: 2 }}>🤖 Análise Automática SINAPI — MPMA</h1>
@@ -563,7 +571,7 @@ export default function Home() {
       <Cartao titulo="📋 Análises recentes">
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
           <thead><tr style={{ textAlign: "left", color: "#666" }}>
-            <th>#</th><th>OS</th><th>Arquivo</th><th>Resumo</th><th>Quando</th><th></th>
+            <th>#</th><th>OS</th><th>Arquivo</th><th>Resumo</th><th>Quando</th><th></th><th></th>
           </tr></thead>
           <tbody>
             {analises.map((a) => (
@@ -578,9 +586,14 @@ export default function Home() {
                     🖨 Imprimir
                   </button>
                 </td>
+                <td>
+                  <button onClick={() => excluirAnalise(a.id)} style={{ border: "none", background: "none", color: C.vermelho, cursor: "pointer" }}>
+                    Excluir
+                  </button>
+                </td>
               </tr>
             ))}
-            {analises.length === 0 && <tr><td colSpan={6} style={{ padding: "10px 0", color: "#888" }}>Nenhuma análise registrada ainda.</td></tr>}
+            {analises.length === 0 && <tr><td colSpan={7} style={{ padding: "10px 0", color: "#888" }}>Nenhuma análise registrada ainda.</td></tr>}
           </tbody>
         </table>
       </Cartao>
