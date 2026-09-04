@@ -17,3 +17,18 @@ export async function GET(request) {
     return Response.json({ analises: [] });
   }
 }
+
+// DELETE /api/analises?id=123 — apaga uma análise (e seu resultado
+// processado) do banco. Existe para permitir limpar "Análises recentes" de
+// tempos em tempos e não deixar a tabela crescer sem limite — não há
+// exclusão automática por idade/quantidade, é sempre uma ação manual.
+export async function DELETE(request) {
+  try {
+    const id = new URL(request.url).searchParams.get("id");
+    if (!id) return Response.json({ erro: "id obrigatório" }, { status: 400 });
+    await sql`DELETE FROM analises_automaticas WHERE id = ${id}`;
+    return Response.json({ ok: true });
+  } catch (e) {
+    return Response.json({ erro: e.message || "Falha ao excluir a análise." }, { status: 500 });
+  }
+}
