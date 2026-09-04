@@ -85,7 +85,7 @@ export default function Imprimir({ params }) {
 
       <div className="folha">
         <h1>Parecer de Análise Automática de Orçamento</h1>
-        <p className="subtitulo">Análise Automática SINAPI — MPMA · Verificação de conformidade SINAPI/ORSE do orçamento enviado no Tá na Mão.</p>
+        <p className="subtitulo">ORÇA VALIDA · Verificação de conformidade SINAPI/ORSE do orçamento enviado no Tá na Mão.</p>
 
         <div className="grade-cabecalho">
           <div className="campo-cab"><div className="rotulo">Nº da análise</div><div className="valor">{analise.id}</div></div>
@@ -152,7 +152,7 @@ export default function Imprimir({ params }) {
         </div>
 
         <div className="rodape">
-          Gerado automaticamente pela Análise Automática SINAPI — MPMA em {new Date().toLocaleString("pt-BR")}. Documento de apoio à fiscalização; não substitui o parecer técnico formal do fiscal do contrato.
+          Gerado automaticamente pelo ORÇA VALIDA em {new Date().toLocaleString("pt-BR")}. Documento de apoio à fiscalização; não substitui o parecer técnico formal do fiscal do contrato.
         </div>
       </div>
     </>
