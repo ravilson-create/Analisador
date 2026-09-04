@@ -1,6 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback, Fragment } from "react";
-import { parseBase, statusEfetivo } from "@/lib/analise";
+import { parseBase, statusEfetivo, parseFlt, normSA } from "@/lib/analise";
+
+let _uidSeq = 0;
+const uid = () => `row_${Date.now()}_${_uidSeq++}`;
 
 const CHUNK_ITENS = 1500;
 const C = { azul: "#1B3A8C", azulBg: "#EFF6FF", verde: "#0D7A3E", verdeBg: "#DCFCE7",
@@ -30,20 +33,137 @@ const formBoxEstilo = { background: "#fff", border: `1px solid ${C.borda}`, bord
 const inputEstiloPeq = { border: `1px solid ${C.borda}`, borderRadius: 5, padding: "5px 8px", fontSize: 11.5, boxSizing: "border-box" };
 const linkEstilo = { background: "none", border: "none", color: "#999", fontSize: 10.5, cursor: "pointer", textDecoration: "underline" };
 
+// Uma linha de insumo da composição própria: os 5 campos editáveis (código,
+// descrição, unidade, coeficiente, preço) + banco, com busca automática do
+// valor de referência na tabela base ativa a cada mudança de código —
+// equivalente ao "ref" (buscarPorCodigo) do ModalCorrecao do app original,
+// só que aqui via GET /api/bases/buscar (as bases não ficam em memória no
+// navegador, então a busca precisa ser assíncrona/debounced).
+function LinhaInsumo({ row, onAtualizar, onRemover }) {
+  const [ref, setRef] = useState(null);
+  const [buscandoRef, setBuscandoRef] = useState(false);
+
+  useEffect(() => {
+    const cod = (row.codigo || "").trim();
+    if (!cod) { setRef(null); setBuscandoRef(false); return; }
+    setBuscandoRef(true);
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/bases/buscar?q=${encodeURIComponent(cod)}`);
+        const d = await r.json();
+        const alvo = normSA(cod);
+        const achado = (d.resultados || []).find((it) => normSA(it.codigo) === alvo);
+        setRef(achado || null);
+      } catch { setRef(null); }
+      finally { setBuscandoRef(false); }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [row.codigo]);
+
+  const precoDigitado = parseFlt(row.preco);
+  const divergente = !!ref && precoDigitado > 0 && Math.abs(precoDigitado - ref.preco) > 0.01;
+
+  return (
+    <div style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px dashed ${C.borda}` }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 2, alignItems: "center", flexWrap: "wrap" }}>
+        <input value={row.codigo} onChange={(e) => onAtualizar("codigo", e.target.value)} placeholder="Código" style={{ ...inputEstiloPeq, width: 80 }} />
+        <input value={row.descricao} onChange={(e) => onAtualizar("descricao", e.target.value)} placeholder="Descrição do insumo" style={{ ...inputEstiloPeq, flex: 1, minWidth: 140 }} />
+        <input value={row.unidade} onChange={(e) => onAtualizar("unidade", e.target.value)} placeholder="Und" style={{ ...inputEstiloPeq, width: 55 }} />
+        <input value={row.coeficiente} onChange={(e) => onAtualizar("coeficiente", e.target.value)} placeholder="Coef." style={{ ...inputEstiloPeq, width: 60 }} />
+        <input value={row.preco} onChange={(e) => onAtualizar("preco", e.target.value)} placeholder="Preço"
+          title={ref ? `Valor na tabela base: R$ ${fmt(ref.preco)}` : undefined}
+          style={{ ...inputEstiloPeq, width: 80, borderColor: divergente ? C.vermelho : C.borda, background: divergente ? C.vermelhoBg : "#fff" }} />
+        <select value={row.banco || "Próprio"} onChange={(e) => onAtualizar("banco", e.target.value)} style={{ ...inputEstiloPeq, width: 76 }}>
+          <option value="Próprio">Próprio</option>
+          <option value="SINAPI">SINAPI</option>
+          <option value="ORSE">ORSE</option>
+        </select>
+        <button onClick={onRemover} title="Remover insumo" style={{ border: "none", background: "none", color: C.vermelho, cursor: "pointer", fontSize: 14 }}>✕</button>
+      </div>
+      <div style={{ fontSize: 10, marginLeft: 2 }}>
+        {buscandoRef && <span style={{ color: "#999" }}>buscando na tabela base...</span>}
+        {!buscandoRef && row.codigo?.trim() && (
+          ref
+            ? <span style={{ color: divergente ? C.vermelho : C.verde, fontWeight: divergente ? 700 : 400 }}>
+                ✓ tabela ({ref.banco}): R$ {fmt(ref.preco)}{divergente ? " — diverge do preço digitado" : ""}
+              </span>
+            : <span style={{ color: "#999" }}>não localizado nas bases ativas — será tratado como insumo próprio</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Busca assistida para ADICIONAR um novo insumo (por código ou trecho da
+// descrição) já pré-preenchido a partir das bases ativas — equivalente ao
+// campo "Adicionar insumo" do ModalCorrecao do app original.
+function BuscaInsumo({ onEscolher }) {
+  const [termo, setTermo] = useState("");
+  const [resultados, setResultados] = useState([]);
+  const [buscando, setBuscando] = useState(false);
+
+  useEffect(() => {
+    if (termo.trim().length < 3) { setResultados([]); return; }
+    const t = setTimeout(async () => {
+      setBuscando(true);
+      try {
+        const r = await fetch(`/api/bases/buscar?q=${encodeURIComponent(termo.trim())}`);
+        const d = await r.json();
+        setResultados((d.resultados || []).slice(0, 8));
+      } catch { setResultados([]); }
+      finally { setBuscando(false); }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [termo]);
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <input value={termo} onChange={(e) => setTermo(e.target.value)}
+        placeholder="Buscar insumo na tabela base por código ou descrição (mín. 3 letras)"
+        style={{ ...inputEstiloPeq, width: "100%" }} />
+      {buscando && <div style={{ color: "#888", fontSize: 10.5, marginTop: 2 }}>Buscando...</div>}
+      {resultados.length > 0 && (
+        <div style={{ border: `1px solid ${C.borda}`, borderRadius: 6, maxHeight: 180, overflowY: "auto", marginTop: 4 }}>
+          {resultados.map((r, i) => (
+            <div key={i} onClick={() => { onEscolher(r); setTermo(""); setResultados([]); }}
+              style={{ padding: "6px 8px", borderTop: i > 0 ? `1px solid ${C.borda}` : "none", cursor: "pointer" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontFamily: "monospace", color: "#555" }}>{r.codigo}</span>
+                <span style={{ fontWeight: 700 }}>R$ {fmt(r.preco)}</span>
+              </div>
+              <div style={{ color: "#333" }}>{r.descricao}</div>
+              <div style={{ color: "#888", fontSize: 10 }}>{r.unidade} · {r.banco}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Formulário de composição própria: descrição/unidade + lista de insumos
-// (código, descrição, unidade, coeficiente, preço) editável linha a linha —
-// equivalente ao modo "composição" do ModalCorrecao do app original.
+// (código, descrição, unidade, coeficiente, preço, banco) editável linha a
+// linha, com busca assistida nas bases ativas — equivalente ao modo
+// "composição" do ModalCorrecao do app original (fiscal-sinapi-local): cada
+// insumo mostra o valor previsto na tabela base, o coeficiente continua
+// livremente editável, e um insumo não encontrado na base é tratado como
+// "Próprio" sem bloquear o lançamento.
 function FormComposicao({ inicial, salvando, onSalvar }) {
   const [descricao, setDescricao] = useState(inicial.descricao || "");
   const [unidade, setUnidade] = useState(inicial.unidade || "");
+  const linhaVazia = () => ({ id: uid(), codigo: "", descricao: "", unidade: "", coeficiente: "", preco: "", banco: "Próprio" });
   const [insumos, setInsumos] = useState(
-    inicial.insumos?.length ? inicial.insumos.map((i) => ({ ...i })) : [{ codigo: "", descricao: "", unidade: "", coeficiente: "", preco: "" }]
+    inicial.insumos?.length ? inicial.insumos.map((i) => ({ id: uid(), banco: "Próprio", ...i })) : [linhaVazia()]
   );
-  const atualizar = (i, campo, valor) => setInsumos((arr) => arr.map((row, k) => (k === i ? { ...row, [campo]: valor } : row)));
-  const adicionar = () => setInsumos((arr) => [...arr, { codigo: "", descricao: "", unidade: "", coeficiente: "", preco: "" }]);
-  const remover = (i) => setInsumos((arr) => arr.filter((_, k) => k !== i));
-  const total = insumos.reduce((s, i) => s + (Number(i.coeficiente) || 0) * (Number(i.preco) || 0), 0);
-  const valido = descricao.trim() && insumos.some((i) => i.descricao.trim() && Number(i.coeficiente) > 0);
+  const atualizar = (id, campo, valor) => setInsumos((arr) => arr.map((row) => (row.id === id ? { ...row, [campo]: valor } : row)));
+  const adicionarManual = () => setInsumos((arr) => [...arr, linhaVazia()]);
+  const adicionarDaBase = (r) => setInsumos((arr) => [
+    ...arr,
+    { id: uid(), codigo: r.codigo || "", descricao: r.descricao || "", unidade: r.unidade || "", coeficiente: "", preco: String(r.preco ?? ""), banco: r.banco || "Próprio" },
+  ]);
+  const remover = (id) => setInsumos((arr) => (arr.length > 1 ? arr.filter((row) => row.id !== id) : arr));
+  const total = insumos.reduce((s, i) => s + parseFlt(i.coeficiente) * parseFlt(i.preco), 0);
+  const valido = descricao.trim() && insumos.some((i) => i.descricao.trim() && parseFlt(i.coeficiente) > 0);
 
   return (
     <div style={formBoxEstilo}>
@@ -53,17 +173,13 @@ function FormComposicao({ inicial, salvando, onSalvar }) {
           style={{ ...inputEstiloPeq, flex: 2, minWidth: 200 }} />
         <input value={unidade} onChange={(e) => setUnidade(e.target.value)} placeholder="Unidade" style={{ ...inputEstiloPeq, maxWidth: 90 }} />
       </div>
-      {insumos.map((row, i) => (
-        <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center", flexWrap: "wrap" }}>
-          <input value={row.codigo} onChange={(e) => atualizar(i, "codigo", e.target.value)} placeholder="Código" style={{ ...inputEstiloPeq, width: 80 }} />
-          <input value={row.descricao} onChange={(e) => atualizar(i, "descricao", e.target.value)} placeholder="Descrição do insumo" style={{ ...inputEstiloPeq, flex: 1, minWidth: 140 }} />
-          <input value={row.unidade} onChange={(e) => atualizar(i, "unidade", e.target.value)} placeholder="Und" style={{ ...inputEstiloPeq, width: 55 }} />
-          <input value={row.coeficiente} onChange={(e) => atualizar(i, "coeficiente", e.target.value)} placeholder="Coef." style={{ ...inputEstiloPeq, width: 60 }} />
-          <input value={row.preco} onChange={(e) => atualizar(i, "preco", e.target.value)} placeholder="Preço" style={{ ...inputEstiloPeq, width: 80 }} />
-          <button onClick={() => remover(i)} title="Remover insumo" style={{ border: "none", background: "none", color: C.vermelho, cursor: "pointer", fontSize: 14 }}>✕</button>
-        </div>
+      <BuscaInsumo onEscolher={adicionarDaBase} />
+      {insumos.map((row) => (
+        <LinhaInsumo key={row.id} row={row}
+          onAtualizar={(campo, valor) => atualizar(row.id, campo, valor)}
+          onRemover={() => remover(row.id)} />
       ))}
-      <button onClick={adicionar} style={{ ...botaoAcaoEstilo, marginTop: 4 }}>+ Adicionar insumo</button>
+      <button onClick={adicionarManual} style={{ ...botaoAcaoEstilo, marginTop: 4 }}>+ Manual (insumo sem código na base)</button>
       <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <span style={{ color: "#555" }}>Custo direto calculado: <b>R$ {fmt(total)}</b></span>
         <Botao onClick={() => onSalvar({ descricao, unidade, insumos })} disabled={salvando || !valido} style={{ fontSize: 11, padding: "5px 12px" }}>
