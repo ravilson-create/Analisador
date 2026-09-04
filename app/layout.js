@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Análise Automática SINAPI — MPMA",
+  title: "ORÇA VALIDA",
   description: "Serviço standalone que analisa planilhas de medição (PDF) contra SINAPI/ORSE, disparado pelo Tá na Mão.",
 };
 

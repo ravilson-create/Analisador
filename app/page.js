@@ -581,7 +581,10 @@ export default function Home() {
 
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "28px 20px" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 800, color: C.azul, marginBottom: 2 }}>🤖 Análise Automática SINAPI — MPMA</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 800, color: C.azul, marginBottom: 2, display: "flex", alignItems: "center", gap: 10 }}>
+        <img src="/logo-mpma.png" alt="MPMA" style={{ height: 34, width: "auto" }} />
+        ORÇA VALIDA
+      </h1>
       <p style={{ fontSize: 13, color: "#555", marginBottom: 20 }}>
         Confere orçamentos em PDF do Tá na Mão contra as bases SINAPI/ORSE. Importe as bases e envie um PDF para analisar.
       </p>
