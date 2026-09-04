@@ -107,6 +107,97 @@ def _numero_brasileiro(txt):
         return None
 
 
+# Marca o início da "Planilha Orçamentária Analítica"/"Orçamento Analítico".
+# Aparece só na página onde o quadro analítico começa (não se repete nas
+# páginas de continuação seguintes) — por isso, uma vez encontrada, todas as
+# páginas daí em diante são tratadas como analítico, mesmo que a própria
+# página não repita o título.
+_RX_TITULO_ANALITICO = re.compile(r"Or[çc]amento\s+Anal[ií]tic|Planilha\s+Or[çc]ament[áa]ria\s+Anal[ií]tic", re.IGNORECASE)
+
+
+def _pagina_e_titulo_analitico(texto):
+    return bool(texto) and bool(_RX_TITULO_ANALITICO.search(texto))
+
+
+# Rótulos equivalentes a "Deságio" em contratos com desconto direto sobre o
+# preço (em vez de deságio no sentido estrito) — ex.: layout da empresa
+# Torquato Fernandes usa "Desconto".
+_RX_LABEL_BDI = re.compile(r"\bB\s*\.?\s*D\s*\.?\s*I\s*\.?\b", re.IGNORECASE)
+_RX_LABEL_DESAGIO = re.compile(r"Des[aá]gi[ol]|Desconto", re.IGNORECASE)
+_RX_LABEL_REAJUSTE = re.compile(r"Reajuste", re.IGNORECASE)
+_RX_PERCENTUAL = re.compile(r"(\d{1,3}(?:[.,]\d+)?)\s*%")
+_RX_NUMERO = re.compile(r"-?\d{1,3}(?:\.\d{3})*(?:,\d+)?|-?\d+(?:,\d+)?")
+
+
+def _extrair_metadados_tabela(tabela):
+    """
+    Fallback para quando o cabeçalho de metadados (BDI/Reajuste/Deságio ou
+    Desconto) não fica ACIMA da tabela detectada, e sim DENTRO dela — caso
+    do layout da Torquato Fernandes, onde tanto o bloco "OBRA/BDI/DESCONTO"
+    quanto o rodapé "Valor do BDI/Valor doDesconto" são linhas da própria
+    tabela sintética, não texto solto acima dela (o que faz
+    `_extrair_metadados_cabecalho`, baseado em posição de palavras acima de
+    `limite_top`, não encontrar nada).
+
+    Varre toda linha da tabela (mesmo as descartadas como "banner" por
+    `_linha_e_dado`) e, ao achar uma célula cujo texto contenha o rótulo
+    procurado, procura na mesma linha a primeira célula com formato de
+    percentual (ou número, no caso de Reajuste) — funciona tanto para uma
+    linha só com o rótulo+valor colados no mesmo texto quanto para rótulo e
+    valor em células separadas da mesma linha.
+    """
+    achados = {}
+
+    def primeiro_percentual_na_linha(row, rx_label):
+        for cel in row:
+            if cel is None:
+                continue
+            texto = str(cel)
+            m_label = rx_label.search(texto)
+            if not m_label:
+                continue
+            # Procura o percentual DEPOIS do próprio rótulo dentro do mesmo
+            # texto — essencial quando rótulo e valor estão colados no
+            # mesmo bloco de texto corrido (célula "banner" com várias
+            # informações), como "...BDI: 28,00%\n...DESCONTO: 10,16%...":
+            # sem isso, o primeiro percentual do texto (o do BDI) seria
+            # devolvido também para Desconto/Deságio.
+            m = _RX_PERCENTUAL.search(texto, m_label.end())
+            if m:
+                return m.group(1)
+            # Rótulo e valor podem estar em células distintas da mesma linha.
+            for outra in row:
+                if outra is None or outra is cel:
+                    continue
+                m2 = _RX_PERCENTUAL.search(str(outra))
+                if m2:
+                    return m2.group(1)
+        return None
+
+    for row in tabela:
+        if "bdi" not in achados:
+            v = primeiro_percentual_na_linha(row, _RX_LABEL_BDI)
+            if v is not None:
+                achados["bdi"] = v
+        if "desagio" not in achados:
+            v = primeiro_percentual_na_linha(row, _RX_LABEL_DESAGIO)
+            if v is not None:
+                achados["desagio"] = v
+        if "reajuste" not in achados:
+            for cel in row:
+                if cel is None or not _RX_LABEL_REAJUSTE.search(str(cel)):
+                    continue
+                for outra in row:
+                    if outra is None or outra is cel:
+                        continue
+                    m = _RX_NUMERO.search(str(outra))
+                    if m:
+                        achados["reajuste"] = m.group(0)
+                        break
+                break
+    return achados
+
+
 def extrair_pdf(pdf_bytes):
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         if not pdf.pages:
@@ -122,10 +213,17 @@ def extrair_pdf(pdf_bytes):
             )
         tabela_sintetico = tabelas_p1[0]
 
-        # Cabeçalho de metadados: acima do início da tabela detectada.
+        # Cabeçalho de metadados: primeiro tenta pela posição das palavras
+        # acima do início da tabela detectada (layout SAGA); qualquer campo
+        # que não seja encontrado assim é buscado de novo dentro das
+        # próprias linhas da tabela (layout Torquato Fernandes, onde esse
+        # bloco fica dentro da tabela, não acima dela).
         tables_obj = pagina1.find_tables()
         limite_top = tables_obj[0].bbox[1] + 25 if tables_obj else 140
         metadados_raw = _extrair_metadados_cabecalho(pagina1, limite_top)
+        if not all(k in metadados_raw for k in ("bdi", "reajuste", "desagio")):
+            for chave, valor in _extrair_metadados_tabela(tabela_sintetico).items():
+                metadados_raw.setdefault(chave, valor)
         metadados = {
             "bdi": _percentual_para_fracao(metadados_raw.get("bdi")),
             "reajuste": _numero_brasileiro(metadados_raw.get("reajuste")),
@@ -138,15 +236,31 @@ def extrair_pdf(pdf_bytes):
         # porque os metadados já foram extraídos à parte, com mais precisão.
         linhas_uteis_sint = [r for r in tabela_sintetico if _linha_e_dado(r)]
 
-        # Páginas seguintes: "Planilha Orçamentária Analítica", uma ou mais
-        # páginas de continuação do mesmo quadro. Concatenadas em ordem para
-        # que o parser (que anda pelas linhas mantendo o "item atual") veja
-        # uma sequência contínua, igual a uma aba .xlsx de verdade.
+        # Páginas seguintes: podem ser (a) continuação do próprio Orçamento
+        # Sintético, quando esse quadro ocupa mais de uma página, ou (b) o
+        # início/continuação da "Planilha Orçamentária Analítica"/
+        # "Orçamento Analítico". Antes, todo `pdf.pages[1:]` era tratado
+        # incondicionalmente como analítico — o que corrompia a análise
+        # sempre que o Sintético (caso da Torquato Fernandes, com muitos
+        # itens) precisava de mais de uma página: linhas de item eram
+        # perdidas do Sintético e confundiam o parser do Analítico.
+        # Por isso agora cada página só vira analítico a partir de quando o
+        # título correspondente aparece pela primeira vez (e todas as
+        # páginas seguintes acompanham, já que o título não se repete nas
+        # continuações).
         linhas_analitico = []
+        modo_analitico = False
         for page in pdf.pages[1:]:
+            texto_pagina = page.extract_text() or ""
+            if not modo_analitico and _pagina_e_titulo_analitico(texto_pagina):
+                modo_analitico = True
             tabelas = page.extract_tables()
             for tabela in tabelas:
-                linhas_analitico.extend(r for r in tabela if _linha_e_dado(r))
+                linhas_pagina = [r for r in tabela if _linha_e_dado(r)]
+                if modo_analitico:
+                    linhas_analitico.extend(linhas_pagina)
+                else:
+                    linhas_uteis_sint.extend(linhas_pagina)
 
         return {
             "metadados": metadados,
