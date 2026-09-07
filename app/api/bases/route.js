@@ -131,27 +131,37 @@ export async function POST(request) {
           competencia = EXCLUDED.competencia, arquivo = EXCLUDED.arquivo, data_import = EXCLUDED.data_import
       `;
 
-      // Todos os itens adicionados assim ficam num único chunk (ordem 0) —
-      // lê o que já tem, troca o item se o código já existir (evita
-      // duplicata ao pesquisar/gravar o mesmo item de novo), senão acrescenta.
-      const atual = await sql`SELECT itens FROM bases_itens WHERE base_id = ${id} AND ordem = 0`;
-      const lista = Array.isArray(atual[0]?.itens) ? atual[0].itens : [];
+      // Todos os itens adicionados assim ficam num único chunk (ordem 0).
+      // codN vai gravado dentro do próprio item para o UPDATE abaixo achar
+      // duplicata por código sem precisar reproduzir `norm` em SQL.
       const codN = norm(cod);
-      const filtrada = codN ? lista.filter((it) => norm(String(it.codigo || "")) !== codN) : lista;
-      filtrada.push({
+      const novoItem = {
         codigo: cod,
         descricao: desc,
         unidade: String(item?.unidade || "").trim(),
         preco: Number(item?.preco) || 0,
         tipo: "composicao",
-      });
+        codN,
+      };
 
-      await sql`
+      // Troca do item com o mesmo código (se houver) e acréscimo do novo
+      // num único INSERT ... ON CONFLICT DO UPDATE: a cláusula SET lê
+      // `bases_itens.itens` (o valor atual da MESMA linha que este upsert
+      // está travando) — duas gravações concorrentes na mesma base ficam
+      // serializadas pelo Postgres em vez da segunda sobrescrever o item
+      // que a primeira acabou de acrescentar (o risco do antigo "lê no
+      // app, grava depois", em consultas separadas).
+      const [{ itens: gravados }] = await sql`
         INSERT INTO bases_itens (base_id, ordem, itens)
-        VALUES (${id}, 0, ${JSON.stringify(filtrada)})
-        ON CONFLICT (base_id, ordem) DO UPDATE SET itens = EXCLUDED.itens
+        VALUES (${id}, 0, ${JSON.stringify([novoItem])})
+        ON CONFLICT (base_id, ordem) DO UPDATE SET itens = (
+          SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+          FROM jsonb_array_elements(bases_itens.itens) elem
+          WHERE NOT (${codN} <> '' AND elem->>'codN' = ${codN})
+        ) || EXCLUDED.itens
+        RETURNING itens
       `;
-      return Response.json({ ok: true, id, total: filtrada.length });
+      return Response.json({ ok: true, id, total: gravados.length });
     }
 
     return Response.json({ erro: "ação desconhecida" }, { status: 400 });
