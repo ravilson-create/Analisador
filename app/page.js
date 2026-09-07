@@ -101,16 +101,20 @@ function BuscaInsumo({ onEscolher }) {
   const [termo, setTermo] = useState("");
   const [resultados, setResultados] = useState([]);
   const [buscando, setBuscando] = useState(false);
+  const [aviso, setAviso] = useState("");
 
   useEffect(() => {
-    if (termo.trim().length < 3) { setResultados([]); return; }
+    if (termo.trim().length < 3) { setResultados([]); setAviso(""); return; }
     const t = setTimeout(async () => {
-      setBuscando(true);
+      setBuscando(true); setAviso("");
       try {
         const r = await fetch(`/api/bases/buscar?q=${encodeURIComponent(termo.trim())}`);
         const d = await r.json();
-        setResultados((d.resultados || []).slice(0, 8));
-      } catch { setResultados([]); }
+        if (!r.ok || d.erro) throw new Error(d.erro || `Erro ${r.status}`);
+        const lista = (d.resultados || []).slice(0, 8);
+        setResultados(lista);
+        setAviso(lista.length === 0 ? "Nenhum resultado nas bases ativas." : "");
+      } catch (e) { setResultados([]); setAviso(e.message || "Falha na busca — tente novamente."); }
       finally { setBuscando(false); }
     }, 350);
     return () => clearTimeout(t);
@@ -122,6 +126,7 @@ function BuscaInsumo({ onEscolher }) {
         placeholder="Buscar insumo na tabela base por código ou descrição (mín. 3 letras)"
         style={{ ...inputEstiloPeq, width: "100%" }} />
       {buscando && <div style={{ color: "#888", fontSize: 10.5, marginTop: 2 }}>Buscando...</div>}
+      {!buscando && aviso && <div style={{ color: "#888", fontSize: 10.5, marginTop: 2 }}>{aviso}</div>}
       {resultados.length > 0 && (
         <div style={{ border: `1px solid ${C.borda}`, borderRadius: 6, maxHeight: 180, overflowY: "auto", marginTop: 4 }}>
           {resultados.map((r, i) => (
@@ -206,9 +211,10 @@ function BuscaCodigo({ onEscolher }) {
       try {
         const r = await fetch(`/api/bases/buscar?q=${encodeURIComponent(termo.trim())}`);
         const d = await r.json();
+        if (!r.ok || d.erro) throw new Error(d.erro || `Erro ${r.status}`);
         setResultados(d.resultados || []);
         setAviso(d.resultados?.length === 0 ? "Nenhum resultado nas bases ativas." : "");
-      } catch { setAviso("Falha na busca."); }
+      } catch (e) { setResultados([]); setAviso(e.message || "Falha na busca."); }
       finally { setBuscando(false); }
     }, 350);
     return () => clearTimeout(t);
@@ -529,6 +535,60 @@ export default function Home() {
     carregarBases();
   };
 
+  // ── Busca online — ORSE (CEHOP/SE) ──
+  // Mesma consulta pública do fiscal-sinapi-local (GET /api/orse), com o
+  // resultado podendo ser gravado direto numa base (mesmas tabelas
+  // bases_referencia/bases_itens já usadas pelas bases importadas — sem
+  // campo/seção nova) via a ação "item" de POST /api/bases.
+  const [buscaOrse, setBuscaOrse] = useState("");
+  const [buscandoOrse, setBuscandoOrse] = useState(false);
+  const [erroOrse, setErroOrse] = useState("");
+  const [resultadosOrse, setResultadosOrse] = useState([]);
+  const [salvandoOrse, setSalvandoOrse] = useState(null);
+  const [salvosOrse, setSalvosOrse] = useState(() => new Set());
+
+  const buscarOrse = async () => {
+    if (!buscaOrse.trim()) { setErroOrse("Digite um termo para buscar."); return; }
+    setBuscandoOrse(true); setErroOrse(""); setResultadosOrse([]); setSalvosOrse(new Set());
+    try {
+      const r = await fetch(`/api/orse?termo=${encodeURIComponent(buscaOrse.trim())}`);
+      const d = await r.json();
+      if (!r.ok || d.erro) throw new Error(d.erro || `Erro ${r.status}`);
+      if (!d.resultados?.length) { setErroOrse("Nenhum resultado encontrado para esse termo."); return; }
+      const itensFmt = d.resultados.map((res) => {
+        const partes = (res.codigo || "").split("/");
+        return {
+          codigo: partes[0] || res.codigo,
+          nome: res.descricao,
+          unidade: res.unidade,
+          preco: parseFlt(res.custoUnit),
+          banco: partes[1] || "ORSE",
+        };
+      });
+      setResultadosOrse(itensFmt);
+    } catch (e) { setErroOrse(e.message || "Falha ao consultar o ORSE."); }
+    finally { setBuscandoOrse(false); }
+  };
+
+  const adicionarOrse = async (item, idx) => {
+    setSalvandoOrse(idx); setErroOrse("");
+    try {
+      const r = await fetch("/api/bases", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acao: "item",
+          baseNome: item.banco || "ORSE",
+          competencia: "Online",
+          arquivo: "Busca Online — ORSE (CEHOP/SE)",
+          item: { codigo: item.codigo, descricao: item.nome, unidade: item.unidade, preco: item.preco },
+        }) });
+      const d = await r.json();
+      if (!r.ok || d.erro) throw new Error(d.erro || `Erro ${r.status}`);
+      setSalvosOrse((s) => new Set(s).add(idx));
+      carregarBases();
+    } catch (e) { setErroOrse(e.message || "Falha ao salvar o item."); }
+    finally { setSalvandoOrse(null); }
+  };
+
   // ── Teste de análise automática ──
   const [osIdTeste, setOsIdTeste] = useState("");
   const [rodando, setRodando] = useState(false);
@@ -599,6 +659,40 @@ export default function Home() {
           </label>
         </div>
         {importando && <p style={{ fontSize: 12, color: C.azul }}>{importando}</p>}
+
+        <div style={{ background: "#F0F9FF", border: "1px solid #0891B244", borderRadius: 8, padding: "10px 14px", marginBottom: 14 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0891B2", marginBottom: 2 }}>🌐 Busca online — ORSE (CEHOP/SE)</div>
+          <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>
+            Consulta direta e gratuita no site público do ORSE. Resultados encontrados podem ser adicionados à base abaixo.
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+            <input value={buscaOrse} onChange={(e) => setBuscaOrse(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && buscarOrse()}
+              placeholder="Ex.: pintura, alvenaria, fiação..." style={{ ...inputEstilo, flex: 1 }} />
+            <Botao onClick={buscarOrse} disabled={buscandoOrse} cor="#0891B2" style={{ fontSize: 12, padding: "0 16px" }}>
+              {buscandoOrse ? "Buscando..." : "Buscar"}
+            </Botao>
+          </div>
+          {erroOrse && <p style={{ fontSize: 11.5, color: C.vermelho, background: C.vermelhoBg, padding: "6px 10px", borderRadius: 6, margin: 0 }}>⚠ {erroOrse}</p>}
+          {resultadosOrse.length > 0 && (
+            <div style={{ background: "#fff", border: "1px solid #0891B244", borderRadius: 6, marginTop: 6 }}>
+              {resultadosOrse.map((r, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderTop: i > 0 ? `1px solid ${C.borda}` : "none" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 600 }}>{r.nome}</div>
+                    <div style={{ fontSize: 10, color: "#888" }}>{r.codigo} · {r.unidade} · R$ {fmt(r.preco)} · {r.banco}</div>
+                  </div>
+                  <button onClick={() => adicionarOrse(r, i)} disabled={salvandoOrse === i || salvosOrse.has(i)}
+                    style={{ background: salvosOrse.has(i) ? C.verdeBg : "#0891B222", color: salvosOrse.has(i) ? C.verde : "#0891B2",
+                      border: `1px solid ${salvosOrse.has(i) ? C.verde : "#0891B2"}44`, borderRadius: 6, padding: "4px 10px",
+                      fontSize: 10.5, fontWeight: 700, cursor: salvosOrse.has(i) ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                    {salvosOrse.has(i) ? "✓ Adicionado" : salvandoOrse === i ? "Salvando..." : "+ Adicionar à base"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {carregandoBases ? <p style={{ fontSize: 12, color: "#888" }}>Carregando...</p> : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>

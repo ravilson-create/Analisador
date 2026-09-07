@@ -20,6 +20,11 @@ export async function GET(request) {
   try {
     const { baseSinapi, baseOrse } = await carregarBasesAtivas();
     const termo = normSA(q);
+    // Palavras do termo digitado, para a busca por descrição também casar
+    // quando as palavras aparecem fora de ordem/soltas na descrição (ex.:
+    // "tinta parede" deve achar "TINTA ACRÍLICA PARA PAREDE INTERNA") — só
+    // o "includes" de string inteira (abaixo) não cobre esse caso.
+    const palavras = termo.split(/\s+/).filter(Boolean);
     const todas = [...baseSinapi, ...baseOrse];
 
     const pontuar = (item) => {
@@ -30,6 +35,7 @@ export async function GET(request) {
       if (desc.startsWith(termo)) return 2;
       if (cod.includes(termo)) return 3;
       if (desc.includes(termo)) return 4;
+      if (palavras.length > 1 && palavras.every((p) => desc.includes(p))) return 5;
       return null;
     };
 

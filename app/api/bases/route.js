@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { norm } from "@/lib/analise";
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  BASES DE REFERÊNCIA (SINAPI/ORSE) — banco próprio deste projeto.
@@ -64,9 +65,12 @@ export async function GET(request) {
   }
 }
 
-// Ações: "base" (grava/atualiza metadados de UMA base), "chunk" (grava um
-// lote de itens), "toggle" (ativa/inativa), "reset" (apaga tudo, recria
-// só os metadados informados).
+// Ações: "base" (grava/atualiza metadados de UMA base — e REGRAVA os itens
+// dela do zero, use só em importação completa), "chunk" (grava um lote de
+// itens dentro de uma base já criada por "base"), "toggle" (ativa/inativa),
+// "item" (acrescenta UM item avulso a uma base "de coleção" identificada só
+// pelo nome — cria a base se não existir; NUNCA apaga os itens que já
+// tinha, ao contrário de "base" — usada pela Busca online do ORSE).
 export async function POST(request) {
   try {
     await garantirTabelas();
@@ -105,6 +109,49 @@ export async function POST(request) {
       if (!id) return Response.json({ erro: "id obrigatório" }, { status: 400 });
       await sql`UPDATE bases_referencia SET ativa = ${ativa ?? true} WHERE id = ${id}`;
       return Response.json({ ok: true });
+    }
+
+    if (acao === "item") {
+      const { baseNome, competencia, arquivo, item } = body;
+      const cod = String(item?.codigo || "").trim();
+      const desc = String(item?.descricao || "").trim();
+      if (!baseNome || !desc) {
+        return Response.json({ erro: "baseNome e item.descricao são obrigatórios." }, { status: 400 });
+      }
+      const id = `online-${norm(baseNome)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+      // Garante só os METADADOS da base (cria se não existir; se já existir,
+      // atualiza só os campos de exibição) — nunca apaga bases_itens, ao
+      // contrário da ação "base" acima, porque aqui itens vão se acumulando
+      // um a um ao longo do tempo.
+      await sql`
+        INSERT INTO bases_referencia (id, nome, competencia, arquivo, data_import, ativa)
+        VALUES (${id}, ${baseNome}, ${competencia || null}, ${arquivo || null}, ${new Date().toLocaleDateString("pt-BR")}, true)
+        ON CONFLICT (id) DO UPDATE SET
+          competencia = EXCLUDED.competencia, arquivo = EXCLUDED.arquivo, data_import = EXCLUDED.data_import
+      `;
+
+      // Todos os itens adicionados assim ficam num único chunk (ordem 0) —
+      // lê o que já tem, troca o item se o código já existir (evita
+      // duplicata ao pesquisar/gravar o mesmo item de novo), senão acrescenta.
+      const atual = await sql`SELECT itens FROM bases_itens WHERE base_id = ${id} AND ordem = 0`;
+      const lista = Array.isArray(atual[0]?.itens) ? atual[0].itens : [];
+      const codN = norm(cod);
+      const filtrada = codN ? lista.filter((it) => norm(String(it.codigo || "")) !== codN) : lista;
+      filtrada.push({
+        codigo: cod,
+        descricao: desc,
+        unidade: String(item?.unidade || "").trim(),
+        preco: Number(item?.preco) || 0,
+        tipo: "composicao",
+      });
+
+      await sql`
+        INSERT INTO bases_itens (base_id, ordem, itens)
+        VALUES (${id}, 0, ${JSON.stringify(filtrada)})
+        ON CONFLICT (base_id, ordem) DO UPDATE SET itens = EXCLUDED.itens
+      `;
+      return Response.json({ ok: true, id, total: filtrada.length });
     }
 
     return Response.json({ erro: "ação desconhecida" }, { status: 400 });
