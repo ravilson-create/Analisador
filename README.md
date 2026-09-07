@@ -1,4 +1,8 @@
-# Análise Automática SINAPI — MPMA (projeto standalone)
+# ORÇA VALIDA — MPMA (projeto standalone)
+
+*(nome interno do repositório/projeto na Vercel continua
+`analise-automatica-sinapi-mpma` — só o nome exibido no app e neste
+README virou ORÇA VALIDA.)*
 
 Serviço independente — **projeto novo na Vercel, banco Neon próprio** —
 que recebe o PDF da "Planilha de Orçamento" anexada a uma OS no Tá na Mão
@@ -85,6 +89,21 @@ e, se usar, o ORSE — não precisa de nenhuma chave. Sem bases importadas,
 a análise automática roda mas todo item fica sem referência de preço (o
 resultado avisa isso explicitamente).
 
+Dentro do mesmo cartão tem a "🌐 Busca online — ORSE (CEHOP/SE)": consulta
+direta e gratuita em `orse.cehop.se.gov.br` (rota `GET
+/api/orse?termo=texto`, porta fiel do `api/orse/route.js` do
+fiscal-sinapi-local, sem a exigência de login que existia lá — este app
+não tem autenticação). Tenta o mês corrente e volta até 12 meses até achar
+publicação com resultado. Cada resultado tem um botão "+ Adicionar à
+base", que grava o item (ação `"item"` de `POST /api/bases`, em
+`app/api/bases/route.js`) numa base "ORSE" — cria a base na hora se ainda
+não existir, e só acrescenta/atualiza o item pelo código, sem nunca apagar
+os itens que a base já tinha (diferente da ação `"base"`, usada só na
+importação completa de planilha, que regrava os itens do zero). Um item
+salvo assim passa a valer também para a busca assistida normal
+(`/api/bases/buscar`) e para a análise automática, como qualquer outro
+item de base importada.
+
 ### 7. Testar
 
 Ainda na página inicial, use o cartão "📄 Análise de Orçamento (PDF)" para
@@ -138,19 +157,31 @@ registro da análise em `analises_automaticas` via `POST
 payload }`, com `acao` em `"quantidade"`, `"codigo"`, `"composicao"` ou
 `"aceite"` (ver o comentário no topo de
 `app/api/analise-automatica/corrigir/route.js` para o formato exato de
-cada `payload`). A busca assistida de código usada no modo `"codigo"`
-consulta `GET /api/bases/buscar?q=texto` (mín. 3 letras), que pontua e
-retorna até 20 candidatos das bases SINAPI/ORSE ativas, ordenados por
-relevância (código exato → código começa com → descrição começa com →
-contém). A rota `/corrigir` reprocessa o item com a mesma `analisarItem`
+cada `payload`). A busca assistida (usada tanto no modo `"codigo"` quanto
+ao adicionar insumo numa composição própria) consulta `GET
+/api/bases/buscar?q=texto` (mín. 3 letras), que pontua e retorna até 20
+candidatos das bases SINAPI/ORSE ativas, ordenados por relevância (código
+exato → código começa com → descrição começa com → descrição contém o
+texto inteiro → descrição contém todas as palavras digitadas, mesmo fora
+de ordem). A rota `/corrigir` reprocessa o item com a mesma `analisarItem`
 do resto do pipeline e regrava o `resumo` da análise — não existe
 endpoint de "desfazer tudo": para reverter uma correção de código ou
 composição própria, aplique uma nova correção por cima (ex.: corrigir o
 código de volta para o original).
 
-Não implementado (diferença consciente do app antigo): não há uma
-"memória" que lembre correções feitas numa análise para sugerir nas
-próximas — cada análise é corrigida isoladamente.
+**Memória de composições próprias**: diferente do app antigo, aqui toda
+composição própria criada/corrigida pelo fiscal (ação `"composicao"`) é
+gravada em `dados_compartilhados.composicoes` (mesmo campo já usado só de
+leitura antes) via `salvarComposicaoMemoria` (`lib/basesServer.js`), com
+deduplicação por código/descrição normalizados. Em análises futuras — a
+mesma análise recém-corrigida ou uma nova análise de outra OS —,
+`analisarItem` (`lib/analise.js`) consulta essa memória para qualquer item
+`proprio` **antes** de desistir de referência: se o mesmo serviço já foi
+validado antes por algum fiscal, o preço calculado é comparado contra o
+que já foi validado (status conforme/atenção/não conforme + excedente a
+glosar, igual ao fluxo normal com SINAPI/ORSE); só cai na mensagem antiga
+("sem código de tabela pública") quando não há nenhum match na memória.
+Não há UI nova para isso — é automático e silencioso quando não há match.
 
 ## Como restringir quem acessa este app
 
@@ -176,10 +207,17 @@ Vercel em vez de reintroduzir um campo dentro do app:
   no pipeline para todas as OS — se o software usado para gerar o PDF for
   diferente, o layout de tabela pode não ter as mesmas linhas de grade
   que este extrator espera.
-- **Memória de medições**: como o banco é novo, a "memória" de medições
-  anteriores começa vazia — os alertas de tendência de preço entre
-  medições só aparecem depois que este projeto acumular seu próprio
-  histórico (ou de alguma forma futura de importar o histórico existente
-  do fiscal-sinapi-local, se fizer sentido).
+- **Memória de medições** (`dados_compartilhados.memoria.medicoes` —
+  diferente da memória de composições próprias, essa sim implementada, ver
+  seção acima): continua sem nada gravando nela. Os alertas de tendência
+  de preço entre medições (`historico` em `analisarItem`) só apareceriam
+  depois que algum fluxo passasse a escrever nesse campo — não é o caso
+  hoje.
+- **Busca online do ORSE**: o scraping de `orse.cehop.se.gov.br`
+  (`api/orse/route.js`) é uma cópia fiel do que já roda em produção no
+  fiscal-sinapi-local, mas não pôde ser testado ponta a ponta durante o
+  desenvolvimento (ambiente sem acesso a esse domínio) — vale um teste
+  manual logo após o primeiro deploy, e reparar se o site mudou o HTML
+  (`td.CorpoTabela`) desde a última vez que essa rota foi escrita.
 - **Onde o AppSheet guarda o PDF no Drive**: o Apps Script ainda precisa
   confirmar isso na prática (ver observação no README de automação).
