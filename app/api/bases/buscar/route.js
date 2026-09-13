@@ -1,5 +1,6 @@
 import { normSA } from "@/lib/analise";
 import { carregarBasesAtivas } from "@/lib/basesServer";
+import { sessaoValida } from "@/lib/db";
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  BUSCA ASSISTIDA DE CÓDIGO — usada pelo formulário "Corrigir código" na
@@ -11,6 +12,7 @@ import { carregarBasesAtivas } from "@/lib/basesServer";
 // ═══════════════════════════════════════════════════════════════════════════
 
 export async function GET(request) {
+  if (!(await sessaoValida())) return Response.json({ erro: "Não autenticado." }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") || "").trim();
   if (q.length < 3) {

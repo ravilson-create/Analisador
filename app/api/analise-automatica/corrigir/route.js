@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db";
+import { sql, sessaoValida, ehAdmin } from "@/lib/db";
 import { analisarItem, montarIndiceBases, montarResumo, extrairBruto, parseFlt } from "@/lib/analise";
 import { carregarBasesAtivas, carregarComposicoesEHistorico, salvarComposicaoMemoria } from "@/lib/basesServer";
 
@@ -39,9 +39,14 @@ export async function POST(request) {
     return Response.json({ erro: "Campos obrigatórios: analiseId, itemIndex, acao." }, { status: 400 });
   }
 
+  const usuario = await sessaoValida();
+  if (!usuario) return Response.json({ erro: "Não autenticado." }, { status: 401 });
+
   try {
-    const linhas = await sql`SELECT itens FROM analises_automaticas WHERE id = ${analiseId}`;
+    const linhas = await sql`SELECT itens, usuario_id FROM analises_automaticas WHERE id = ${analiseId}`;
     if (!linhas[0]) return Response.json({ erro: "Análise não encontrada." }, { status: 404 });
+    const podeCorrigir = linhas[0].usuario_id == null || linhas[0].usuario_id === usuario.id || ehAdmin(usuario);
+    if (!podeCorrigir) return Response.json({ erro: "Você não tem permissão para corrigir esta análise." }, { status: 403 });
 
     const itens = linhas[0].itens;
     const atual = itens[itemIndex];
