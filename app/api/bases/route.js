@@ -1,5 +1,8 @@
-import { sql } from "@/lib/db";
+import { sql, sessaoValida, ehAdmin } from "@/lib/db";
 import { norm } from "@/lib/analise";
+
+const NAO_AUTENTICADO = () => Response.json({ erro: "Não autenticado." }, { status: 401 });
+const SOMENTE_ADMIN = () => Response.json({ erro: "Somente o administrador pode fazer isso — você só pode ativar/desativar bases." }, { status: 403 });
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  BASES DE REFERÊNCIA (SINAPI/ORSE) — banco próprio deste projeto.
@@ -45,6 +48,8 @@ async function criarTabelas() {
 }
 
 export async function GET(request) {
+  const usuario = await sessaoValida();
+  if (!usuario) return NAO_AUTENTICADO();
   try {
     await garantirTabelas();
     const metas = await sql`
@@ -72,10 +77,16 @@ export async function GET(request) {
 // pelo nome — cria a base se não existir; NUNCA apaga os itens que já
 // tinha, ao contrário de "base" — usada pela Busca online do ORSE).
 export async function POST(request) {
+  const usuario = await sessaoValida();
+  if (!usuario) return NAO_AUTENTICADO();
   try {
     await garantirTabelas();
     const body = await request.json();
     const acao = body.acao;
+
+    // Só "toggle" (ativar/desativar) é permitido a qualquer usuário logado
+    // — subir base nova, adicionar itens (chunk/item) é só admin.
+    if (acao !== "toggle" && !ehAdmin(usuario)) return SOMENTE_ADMIN();
 
     if (acao === "base") {
       const b = body.meta;
@@ -171,6 +182,9 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
+  const usuario = await sessaoValida();
+  if (!usuario) return NAO_AUTENTICADO();
+  if (!ehAdmin(usuario)) return SOMENTE_ADMIN();
   try {
     await garantirTabelas();
     const { searchParams } = new URL(request.url);

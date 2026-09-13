@@ -27,14 +27,12 @@ orçamentos enviados em PDF pelas empresas no Tá na Mão.
 - **Banco**: totalmente separado. As bases SINAPI/ORSE precisam ser
   importadas aqui de novo (seção abaixo) — não há nenhuma sincronização
   automática com o Neon do fiscal-sinapi-local.
-- **Acesso**: este projeto não tem login nem chave para usar o app — quem
-  abrir a URL usa direto, sem precisar digitar nada. A única chave que
-  ainda existe (`AUTOMACAO_API_KEY`) protege apenas a chamada interna
+- **Acesso**: login individual por e-mail/senha, restrito ao domínio
+  `@mpma.mp.br` (ver "Login e papéis de acesso", abaixo). A única chave
+  que ainda existe (`AUTOMACAO_API_KEY`) protege apenas a chamada interna
   servidor-a-servidor para a função Python de extração de PDF
   (`api/pdf-tabela.py`); ela nunca aparece em tela nem precisa ser
-  digitada por ninguém. Se for preciso restringir quem consegue **abrir a
-  URL** do app (não só quem consegue chamar as rotas), veja "Como
-  restringir quem acessa este app", mais abaixo.
+  digitada por ninguém — é diferente do login, que é de cada pessoa.
 
 ## Passo a passo para colocar no ar
 
@@ -69,8 +67,13 @@ Em **Settings → Environment Variables**, adicione:
   chamada servidor-a-servidor que a rota `/api/analise-automatica` faz
   para a função Python de extração (`api/pdf-tabela.py`). Não aparece em
   nenhum campo da tela nem precisa ser digitada — nem pelo Apps Script,
-  que também não precisa mais dela para chamar `/api/analise-automatica`
-  (a rota está aberta; veja a nota de segurança acima).
+  que continua chamando `/api/analise-automatica` sem sessão de
+  navegador, exatamente como hoje.
+- `AUTH_SECRET` — outro valor aleatório longo (≥32 caracteres, mesmo
+  comando acima). Assina o cookie de sessão do login; sem ele, ninguém
+  consegue entrar. **Nunca reaproveite o mesmo valor do fiscal-sinapi-local
+  nem de outro projeto** — são segredos independentes, cada um só vale
+  para o próprio deploy.
 
 (`DATABASE_URL` já foi preenchida sozinha no passo 3.)
 
@@ -81,13 +84,17 @@ repositório). Confirme que a função Python foi reconhecida: em
 **Deployments → (deploy mais recente) → Functions**, deve aparecer
 `api/pdf-tabela.py` na lista.
 
-### 6. Importar as bases SINAPI/ORSE
+### 6. Criar a conta de administrador e importar as bases SINAPI/ORSE
 
-Abra a URL do projeto (`https://SEU-PROJETO.vercel.app`) e use direto o
-cartão "📚 Bases de referência" para importar o SINAPI unificado (.xlsx)
-e, se usar, o ORSE — não precisa de nenhuma chave. Sem bases importadas,
-a análise automática roda mas todo item fica sem referência de preço (o
-resultado avisa isso explicitamente).
+Abra a URL do projeto (`https://SEU-PROJETO.vercel.app`) — ela vai
+redirecionar para `/entrar`. Crie sua conta com um e-mail do domínio
+permitido (`@mpma.mp.br`, por padrão): como é a primeira conta do banco,
+ela já vira administrador automaticamente. Logado, use o cartão "📚 Bases
+de referência" para importar o SINAPI unificado (.xlsx) e, se usar, o
+ORSE. Sem bases importadas, a análise automática roda mas todo item fica
+sem referência de preço (o resultado avisa isso explicitamente). Veja
+"Login e papéis de acesso", mais abaixo, para o cadastro dos demais
+usuários (entram como usuário comum, só ativam/desativam bases).
 
 Dentro do mesmo cartão tem a "🌐 Busca online — ORSE (CEHOP/SE)": consulta
 direta e gratuita em `orse.cehop.se.gov.br` (rota `GET
@@ -139,7 +146,7 @@ valor definido aqui na Vercel.
 npm install
 ```
 Crie um `.env` (copie de `.env.example`) com `DATABASE_URL` (pode apontar
-para o mesmo Neon de desenvolvimento) e `AUTOMACAO_API_KEY`.
+para o mesmo Neon de desenvolvimento), `AUTOMACAO_API_KEY` e `AUTH_SECRET`.
 ```
 npm run dev
 ```
@@ -183,22 +190,39 @@ glosar, igual ao fluxo normal com SINAPI/ORSE); só cai na mensagem antiga
 ("sem código de tabela pública") quando não há nenhum match na memória.
 Não há UI nova para isso — é automático e silencioso quando não há match.
 
-## Como restringir quem acessa este app
+## Login e papéis de acesso
 
-Como não existe mais nenhuma chave nem login na tela inicial, qualquer
-pessoa com a URL do projeto consegue abrir e usar o app. Se isso for um
-problema (por exemplo, se a URL puder vazar antes de ir para produção, ou
-se só a equipe da fiscalização puder acessar), use a proteção da própria
-Vercel em vez de reintroduzir um campo dentro do app:
+Cada pessoa tem sua própria conta (e-mail + senha) — a tela inicial (`/`)
+exige login e redireciona para `/entrar` se não houver sessão válida.
 
-- **Settings → Deployment Protection** no projeto na Vercel. As opções
-  mais simples são "Vercel Authentication" (exige login com conta Vercel
-  de quem tiver acesso ao time) ou uma senha simples na frente do site
-  inteiro ("Password Protection", disponível em alguns planos). Qualquer
-  uma delas protege a URL toda — inclusive `/imprimir/<id>` — sem afetar
-  a chamada interna do Apps Script (que pode ser adicionada à lista de
-  exceções/bypass, se a proteção escolhida tiver essa opção) nem exigir
-  nenhuma mudança no código deste projeto.
+- **Cadastro** é aberto em `/entrar` ("Ainda não tenho conta"), mas só
+  aceita e-mails do domínio institucional (`DOMINIO_PERMITIDO` em
+  `lib/db.js`, hoje `@mpma.mp.br`) — mude essa constante se o domínio for
+  outro.
+- **A primeira conta criada** (banco de usuários vazio) vira
+  **administrador** automaticamente. As contas seguintes entram como
+  usuário comum. Não há tela de gestão de usuários — para promover
+  alguém a admin depois, rode no Neon (**Storage → seu banco → Query**):
+  ```sql
+  UPDATE usuarios SET perfil = 'admin' WHERE email = 'fulano@mpma.mp.br';
+  ```
+- **Bases de referência são compartilhadas** entre todos os usuários.
+  Só o **administrador** importa (.xlsx), exclui uma base ou usa a busca
+  online do ORSE para adicionar itens. Qualquer usuário comum pode
+  ativar/desativar uma base já importada.
+- **Análises são privadas de cada usuário** — quem sobe um PDF pela tela
+  só vê (e só pode excluir/corrigir) as próprias análises. As análises
+  disparadas automaticamente pelo Apps Script do Tá na Mão (sem sessão de
+  navegador) ficam **públicas**, visíveis para qualquer usuário logado. O
+  **administrador vê e pode excluir as análises de todo mundo**
+  (supervisão).
+- A senha é validada com `pgcrypto` (`crypt()`/`gen_salt('bf')`) e o
+  login tem bloqueio temporário após tentativas erradas seguidas — mesmo
+  padrão já usado no fiscal-sinapi-local.
+- Se, além do login individual, for preciso restringir quem consegue
+  sequer **abrir a URL** do projeto (ex.: durante homologação), some isso
+  com a proteção da própria Vercel (**Settings → Deployment Protection**)
+  — não precisa mexer no código deste projeto para isso.
 
 ## O que ainda vale revisar
 

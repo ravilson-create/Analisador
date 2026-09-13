@@ -1,10 +1,11 @@
 import * as cheerio from "cheerio";
+import { sessaoValida, ehAdmin } from "@/lib/db";
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  BUSCA ONLINE — ORSE Sergipe (CEHOP), a mesma fonte pública e gratuita já
-//  usada no fiscal-sinapi-local (app/api/orse/route.js de lá). Só a consulta
-//  foi trazida para cá — sem a exigência de sessão/login que o app antigo
-//  tinha, porque o ORÇA VALIDA não tem autenticação nenhuma (ver README).
+//  usada no fiscal-sinapi-local (app/api/orse/route.js de lá). Só o
+//  administrador usa (o resultado é salvo direto numa base compartilhada —
+//  mesmo tratamento de "subir base"), então a rota exige sessão de admin.
 //
 //  GET /api/orse?termo=texto
 //    → { termo, periodo, resultados: [{codigo,descricao,unidade,custoUnit,link}] }
@@ -49,6 +50,10 @@ async function buscarPeriodo(termo, periodo) {
 }
 
 export async function GET(request) {
+  const usuario = await sessaoValida();
+  if (!usuario) return Response.json({ erro: "Não autenticado." }, { status: 401 });
+  if (!ehAdmin(usuario)) return Response.json({ erro: "Somente o administrador pode usar a busca online." }, { status: 403 });
+
   const { searchParams } = new URL(request.url);
   const termo = (searchParams.get("termo") || "").trim();
 
